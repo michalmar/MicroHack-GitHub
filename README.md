@@ -1,241 +1,175 @@
-# MicroHack-GitHub Backend Services
+# MicroHack: GitHub for Modern Development
 
-A microservices architecture for pet management using FastAPI and Azure CosmosDB.
+Welcome to the GitHub MicroHack! This hands-on workshop explores modern software development practices using GitHub's comprehensive development platform. Learn how to leverage AI assistance, implement robust DevSecOps practices, and build scalable microservices architectures.
 
-## Services Overview
+## Workshop Overview
 
-This project implements three backend services:
+This MicroHack guides you through a comprehensive journey of modern development practices, from basic GitHub concepts to advanced AI-assisted development and enterprise-scale DevSecOps implementation.
 
-### 🐾 Pet Service (Port 8000)
-**Base URL:** `/api/pets`
+### 🎯 Learning Objectives
 
-Pet management service with full CRUD operations:
-- **GET** `/api/pets` - List all pets with filtering (species, search)
-- **GET** `/api/pets/{pet_id}` - Get pet by ID
-- **POST** `/api/pets` - Create new pet
-- **PATCH** `/api/pets/{pet_id}` - Update pet
-- **DELETE** `/api/pets/{pet_id}` - Delete pet
+- Master GitHub's collaborative development features and workflows
+- Experience AI-assisted development with GitHub Copilot
+- Implement modern CI/CD pipelines with advanced security integration
+- Build and deploy microservices using cloud-native technologies
+- Understand enterprise-scale development governance and best practices
 
-**Pet Model:**
-- `id`: Unique identifier
-- `name`: Pet name
-- `species`: Type of pet (dog, cat, bird, fish, rabbit, hamster, other)
-- `breed`: Pet breed
-- `age`: Age in months
-- `weight`: Weight in kg
-- `color`: Pet color
-- `imageUrl`: Optional photo URL
+### 🏗️ Sample Application
 
-### 📊 Activity Service (Port 8001)
-**Base URL:** `/api/activities`
+The workshop uses a **Pet Management System** built with microservices architecture:
 
-Pet activity tracking service:
-- **GET** `/api/activities` - List activities with date filtering and pet association
-- **GET** `/api/activities/{activity_id}` - Get activity by ID
-- **POST** `/api/activities` - Create new activity
-- **PATCH** `/api/activities/{activity_id}` - Update activity
-- **DELETE** `/api/activities/{activity_id}` - Delete activity
+#### Backend Services
+- **🐾 Pet Service** (Port 8000) - Core pet management with CRUD operations
+- **📊 Activity Service** (Port 8001) - Pet activity tracking and analytics  
+- **🛍️ Accessory Service** (Port 8002) - Inventory management for pet accessories
 
-**Activity Model:**
-- `id`: Unique identifier
-- `petId`: Associated pet ID
-- `type`: Activity type (exercise, feeding, grooming, medical, play, training, other)
-- `description`: Activity details
-- `timestamp`: When activity occurred
-- `duration`: Duration in minutes (optional)
-- `notes`: Additional notes (optional)
+Each service demonstrates modern development practices including:
+- RESTful API design with FastAPI
+- Azure CosmosDB integration
+- Containerization with Docker
+- Comprehensive testing strategies
+- OpenAPI documentation
+- Health monitoring and observability
 
-### 🛍️ Accessory Service (Port 8002)
-**Base URL:** `/api/accessories`
+## 🏆 MicroHack Challenges
 
-Pet accessory inventory management service:
-- **GET** `/api/accessories` - List accessories with filtering (type, search, low stock)
-- **GET** `/api/accessories/{accessory_id}` - Get accessory by ID
-- **POST** `/api/accessories` - Create new accessory
-- **PATCH** `/api/accessories/{accessory_id}` - Update accessory
-- **DELETE** `/api/accessories/{accessory_id}` - Delete accessory
+This workshop consists of 11 progressive challenges designed to build comprehensive GitHub and modern development expertise:
 
-**Accessory Model:**
-- `id`: Unique identifier
-- `name`: Accessory name
-- `type`: Type (toy, food, collar, bedding, grooming, other)
-- `price`: Price in currency
-- `stock`: Current stock quantity
-- `size`: Size (XS, S, M, L, XL)
-- `imageUrl`: Optional product image URL
-- `description`: Product description
+### Foundation Challenges
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [01](/challenges/challenge-01/README.md) | **Access and Identity** | GitHub organization setup, identity management strategies | 30 min |
+| [02](/challenges/challenge-02/README.md) | **GitHub Copilot Introduction** | AI-assisted development fundamentals | 45 min |
+| [03](/challenges/challenge-03/README.md) | **GitHub Codespaces** | Cloud development environments | 45 min |
 
-## 🚀 Quick Start
+### Collaboration and Planning
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [04](/challenges/challenge-04/README.md) | **Collaborative Design with Issues** | Requirements gathering, project management | 60 min |
+| [05](/challenges/challenge-05/README.md) | **Copilot Configuration** | Advanced AI features, team deployment | 45 min |
+
+### Development and Implementation  
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [06](/challenges/challenge-06/README.md) | **Microservice Design** | AI-assisted architecture design | 90 min |
+| [07](/challenges/challenge-07/README.md) | **Implementation and Testing** | TDD, local development, integration | 120 min |
+
+### Infrastructure and Deployment
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [08](/challenges/challenge-08/README.md) | **Infrastructure as Code** | Azure deployment, security patterns | 90 min |
+| [09](/challenges/challenge-09/README.md) | **CI/CD with GitHub Actions** | Automated pipelines, deployment strategies | 90 min |
+
+### Advanced Topics
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [10](/challenges/challenge-10/README.md) | **DevSecOps and Governance** | Security integration, compliance automation | 90 min |
+| [11](/challenges/challenge-11/README.md) | **AI Agent Automation** | Advanced Copilot agents, task delegation | 60 min |
+
+### 📚 Bonus Challenge (Optional)
+| Challenge | Title | Focus Area | Duration |
+|-----------|-------|------------|----------|
+| [12](/challenges/challenge-12/README.md) | **SRE with AI Agents** | Operational automation, monitoring, troubleshooting | 90 min |
+
+## 🚀 Quick Start Guide
 
 ### Prerequisites
+- GitHub account with Copilot access
+- Azure subscription (will be provided)
+- Basic understanding of software development
+- Familiarity with containerization concepts
 
-1. **Python 3.8+** installed
-2. **Azure CosmosDB Emulator** running locally:
-   - Download: [Azure CosmosDB Emulator](https://aka.ms/cosmosdb-emulator)
-   - Default endpoint: `https://localhost:8081`
-   - Or use Azure CosmosDB in the cloud with connection credentials
+### Workshop Setup
 
-### Start All Services
+1. **Fork this repository** to your GitHub account
+2. **Join the GitHub Organization** (instructor will provide details)
+3. **Access Azure environment** (credentials will be provided)
+4. **Install required tools**:
+   - VS Code with GitHub Copilot extension
+   - Docker Desktop
+   - Azure CLI
+   - Git
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd MicroHack-GitHub
-   ```
+### Starting the Workshop
 
-2. **Run the startup script:**
-   ```bash
-   chmod +x start.sh
-   ./start.sh
-   ```
+1. Begin with [Challenge 01](/challenges/challenge-01/README.md)
+2. Complete challenges sequentially
+3. Use provided solutions as reference when needed
+4. Ask instructors for help when stuck
 
-   This will:
-   - Create virtual environments for each service
-   - Install dependencies
-   - Create `.env` files from examples
-   - Start all three services simultaneously
-   - Monitor service health
+## 🎓 Learning Path and Tips
 
-### Manual Service Setup
+### Recommended Approach
+- **Focus on fundamentals first**: Challenges 1-5 establish core GitHub and Copilot skills
+- **Build progressively**: Each challenge builds on previous knowledge
+- **Practice extensively**: Use provided sample application for hands-on experience
+- **Collaborate actively**: Work with peers, discuss approaches, share learnings
 
-If you prefer to start services individually:
+### Success Strategies
+- **Leverage AI assistance**: Use Copilot throughout the workshop for faster learning
+- **Don't skip testing**: Quality practices are essential for real-world success
+- **Understand the 'why'**: Focus on understanding principles, not just completing tasks
+- **Document your journey**: Keep notes on learnings and best practices
+- **Ask questions**: Instructors and peers are valuable resources
 
-```bash
-# Pet Service
-cd backend/pet-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8000
+## 🛠️ Technical Requirements
 
-# Activity Service  
-cd ../activity-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8001
+### Development Environment
+- **VS Code** with GitHub Copilot extension
+- **Docker Desktop** for containerization
+- **Azure CLI** for cloud interactions
+- **Git** for version control
+- **Python 3.8+** for sample application
+- **Node.js** (if exploring additional technologies)
 
-# Accessory Service
-cd ../accessory-service
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn main:app --host 0.0.0.0 --port 8002
-```
+### Cloud Resources
+- **GitHub Organization** access (provided by instructor)
+- **Azure subscription** with appropriate permissions
+- **GitHub Copilot** license (Business/Enterprise recommended)
 
-## 📡 API Documentation
+### Optional Tools
+- **Postman** or **REST Client extension** for API testing
+- **Azure Storage Explorer** for debugging storage issues
+- **Terraform** or **Bicep** for advanced IaC scenarios
 
-Once services are running, access interactive API documentation:
+## 📚 Additional Resources
 
-- **Pet Service:** http://localhost:8000/docs
-- **Activity Service:** http://localhost:8001/docs
-- **Accessory Service:** http://localhost:8002/docs
+### GitHub Learning Resources
+- [GitHub Skills](https://skills.github.com/) - Interactive learning courses
+- [GitHub Docs](https://docs.github.com/) - Comprehensive documentation
+- [GitHub Community](https://github.community/) - Community support and discussions
 
-## 🧪 Testing with REST Client
+### AI-Assisted Development
+- [Copilot Documentation](https://docs.github.com/en/copilot)
+- [AI Pair Programming Best Practices](https://github.blog/2023-06-20-how-to-write-better-prompts-for-github-copilot/)
+- [Responsible AI Development](https://github.com/github/copilot-research)
 
-Each service includes a `.http` file for testing with the [REST Client extension](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) in VS Code:
+### DevOps and Cloud
+- [Azure DevOps Documentation](https://docs.microsoft.com/en-us/azure/devops/)
+- [Microservices Patterns](https://microservices.io/)
+- [Cloud Native Computing Foundation](https://www.cncf.io/)
 
-- `backend/pet-service/pet-service.http`
-- `backend/activity-service/activity-service.http`
-- `backend/accessory-service/accessory-service.http`
+## 🎯 Workshop Completion
 
-## 🏥 Health Checks
+### Minimum Success Criteria
+- Complete challenges 1-7 (Foundation through Implementation)
+- Successfully deploy at least one microservice to Azure
+- Implement basic CI/CD pipeline
+- Demonstrate effective use of GitHub Copilot
 
-Each service provides health endpoints:
+### Advanced Achievement
+- Complete all 11 challenges
+- Implement comprehensive DevSecOps practices
+- Create reusable automation and templates
+- Mentor other participants
 
-- **Pet Service:** http://localhost:8000/health
-- **Activity Service:** http://localhost:8001/health
-- **Accessory Service:** http://localhost:8002/health
-
-Health checks verify database connectivity and automatically create databases/containers if they don't exist, along with sample data.
-
-## 🗄️ Database Configuration
-
-### Using CosmosDB Emulator (Default)
-
-Services are configured to use the local CosmosDB emulator by default:
-- Endpoint: `https://localhost:8081`
-- Uses emulator's default authentication key
-- Databases are created automatically
-
-### Using Azure CosmosDB
-
-Update the `.env` files in each service directory:
-
-```bash
-# Pet Service
-COSMOS_ENDPOINT=https://your-account.documents.azure.com:443/
-COSMOS_KEY=your-primary-key
-
-# Activity Service  
-COSMOS_ENDPOINT=https://your-account.documents.azure.com:443/
-COSMOS_KEY=your-primary-key
-
-# Accessory Service
-COSMOS_ENDPOINT=https://your-account.documents.azure.com:443/
-COSMOS_KEY=your-primary-key
-```
-
-## 🏗️ Architecture
-
-```
-MicroHack-GitHub/
-├── backend/
-│   ├── pet-service/          # Pet management (port 8000)
-│   ├── activity-service/     # Activity tracking (port 8001)
-│   └── accessory-service/    # Inventory management (port 8002)
-├── start.sh                  # Multi-service startup script
-└── readme.md                 # This file
-```
-
-Each service follows the same architectural pattern:
-- **models.py**: Pydantic data models with validation
-- **database.py**: CosmosDB service layer with CRUD operations
-- **config.py**: Configuration management with environment variables
-- **main.py**: FastAPI application with routes and middleware
-- **requirements.txt**: Python dependencies
-- **.env.example**: Environment variable template
-
-## 🔧 Development
-
-### Adding New Features
-
-1. Follow the established patterns in existing services
-2. Update the corresponding `.http` file with test cases
-3. Ensure proper error handling and validation
-4. Test with both emulator and Azure CosmosDB
-
-### Service Communication
-
-Services are designed to be independent but can communicate via HTTP APIs when needed. Each service maintains its own database for data isolation.
-
-## 📝 Sample Data
-
-Each service creates sample data automatically when the health check runs:
-
-**Pet Service:**
-- 2 sample pets (Golden Retriever and Siamese Cat)
-
-**Activity Service:**
-- 2 sample activities (feeding and exercise)
-
-**Accessory Service:**
-- 2 sample accessories (chew toy and salmon treats)
-
-## 🛑 Stopping Services
-
-Press `Ctrl+C` in the terminal running `./start.sh` to gracefully stop all services.
-
-## 📋 Logs
-
-Service logs are available in each service directory:
-- `backend/pet-service/pet-service.log`
-- `backend/activity-service/activity-service.log`
-- `backend/accessory-service/accessory-service.log`
+### Post-Workshop
+- Continue practicing with your own projects
+- Join GitHub community discussions
+- Contribute to open source projects using learned skills
+- Share knowledge with your team and organization
 
 ---
 
-Happy coding! 🚀
+**Ready to transform your development workflow?** 
+Start with [Challenge 01: Access and Identity](/challenges/challenge-01/README.md) and begin your GitHub mastery journey! 🚀
