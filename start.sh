@@ -75,7 +75,7 @@ fi
 
 echo "   🔧 Activating virtual environment and installing dependencies..."
 source venv/bin/activate
-# pip install -r requirements.txt > /dev/null 2>&1
+pip install -r requirements.txt > /dev/null 2>&1
 
 if [ ! -f ".env" ]; then
     echo "   ⚙️ Creating .env file from .env.example..."
@@ -111,7 +111,7 @@ fi
 
 echo "   🔧 Activating virtual environment and installing dependencies..."
 source venv/bin/activate
-# pip install -r requirements.txt > /dev/null 2>&1
+pip install -r requirements.txt > /dev/null 2>&1
 
 if [ ! -f ".env" ]; then
     echo "   ⚙️ Creating .env file from .env.example..."
@@ -148,7 +148,7 @@ fi
 
 echo "   🔧 Activating virtual environment and installing dependencies..."
 source venv/bin/activate
-# pip install -r requirements.txt > /dev/null 2>&1
+pip install -r requirements.txt > /dev/null 2>&1
 
 if [ ! -f ".env" ]; then
     echo "   ⚙️ Creating .env file from .env.example..."
