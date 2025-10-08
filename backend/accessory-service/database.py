@@ -6,6 +6,7 @@ following Azure best practices for authentication, error handling, and performan
 """
 
 import logging
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -44,13 +45,23 @@ class AccessoryCosmosDBService:
             logger.info("Initializing CosmosDB connection with key-based authentication")
             
             # Create CosmosDB client with key authentication
-            self.client = CosmosClient(
-                self.settings.cosmos_endpoint,
-                credential=self.settings.cosmos_key,
-                # Enable connection pooling and set timeouts
-                connection_timeout=30,
-                request_timeout=30
-            )
+            # Support optional SSL verification disable for local emulator scenarios only.
+            disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+
+            cosmos_kwargs = {
+                "credential": self.settings.cosmos_key,
+                "connection_timeout": 30,
+                "request_timeout": 30,
+            }
+            if disable_ssl_verify:
+                cosmos_kwargs["connection_verify"] = False  # type: ignore[arg-type]
+                logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
+
+            endpoint = self.settings.cosmos_endpoint
+            if endpoint.startswith("http://"):
+                logger.warning("COSMOS_ENDPOINT uses http:// – prefer https:// for production parity.")
+
+            self.client = CosmosClient(endpoint, **cosmos_kwargs)
             
             # Get database and container references
             self.database = self.client.get_database_client(self.settings.cosmos_database_name)

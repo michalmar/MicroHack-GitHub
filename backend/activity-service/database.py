@@ -53,7 +53,20 @@ class ActivityCosmosService:
         """Ensure the CosmosDB client, database, and container are initialized"""
         if self.client is None:
             logger.info("Initializing CosmosDB client...")
-            self.client = CosmosClient(self.cosmos_endpoint, self.cosmos_key)
+            disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+            cosmos_kwargs = {
+                "credential": self.cosmos_key,
+                "connection_timeout": 30,
+                "request_timeout": 30,
+            }
+            if disable_ssl_verify:
+                cosmos_kwargs["connection_verify"] = False  # type: ignore[arg-type]
+                logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
+
+            if self.cosmos_endpoint.startswith("http://"):
+                logger.warning("cosmos_endpoint uses http:// – prefer https:// for production parity.")
+
+            self.client = CosmosClient(self.cosmos_endpoint, **cosmos_kwargs)
             
         if self.database is None:
             logger.info(f"Getting database: {self.database_name}")

@@ -3,7 +3,7 @@
 # https://marketplace.visualstudio.com/items?itemName=humao.rest-client
 
 # Variables for the Pet Service API
-@baseUrl = http://localhost:8000
+@baseUrl = http://localhost:8010
 @contentType = application/json
 
 ###############################################################################
