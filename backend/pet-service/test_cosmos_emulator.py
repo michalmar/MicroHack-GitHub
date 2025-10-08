@@ -21,7 +21,8 @@ import sys
 import uuid
 import traceback
 
-DEFAULT_URL = "http://localhost:8081"
+DEFAULT_URL = "http://localhost:8081" # Use this on local machine with proper cert setup
+DEFAULT_URL = "https://localhost:8081" # Use this inside GitHub Codespaces
 DEFAULT_KEY = (
     "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGG"
     "yPMbIZnqyMsEcaGQy67XIw/Jw=="

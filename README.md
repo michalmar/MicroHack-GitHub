@@ -97,6 +97,56 @@ This workshop consists of 11 progressive challenges designed to build comprehens
 3. Use provided solutions as reference when needed
 4. Ask instructors for help when stuck
 
+### Local Development in GitHub Codespaces (Preparation)
+
+This section helps you run the sample microservices and a local Azure Cosmos DB Emulator entirely inside a GitHub Codespace. It is especially useful for completing challenges that involve data persistence and integration tests without deploying real Azure resources.
+
+#### ✅ Overview
+You will:
+1. Start (or reuse) your Codespace.
+2. Launch the Azure Cosmos DB Emulator as a Docker container.
+3. (Optionally) Trust its self‑signed certificate for HTTPS.
+4. Export environment variables for the pet service tests / SDK usage.
+5. Run the provided emulator connectivity test.
+
+#### 1. Open / Start Your Codespace
+Fork (or use a workshop-provided repo) and open it in a Codespace with Docker enabled (default images already have Docker + Python tools available).
+
+#### 2. Pull and Run the Cosmos DB Emulator
+```bash
+docker pull mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+
+docker run \
+   --name cosmos-emulator \
+   --detach \
+   --publish 8081:8081 \
+   --publish 10250-10255:10250-10255 \
+   --env AZURE_COSMOS_EMULATOR_PARTITION_COUNT=2 \
+   --env AZURE_COSMOS_EMULATOR_ENABLE_DATA_PERSISTENCE=true \
+   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
+```
+Wait for readiness:
+```bash
+docker logs -f cosmos-emulator | grep -i "Started Azure Cosmos DB Emulator" || true
+```
+
+Why these ports?
+- 8081: HTTPS endpoint + Data Explorer
+- 10250-10255: Backend gateway/data ports required by the SDK
+
+Inside Codespaces your application code should use `localhost` (NOT the forwarded public URL). Port forwarding (in the Ports panel) is only needed if you want to open the Data Explorer UI in a browser.
+
+#### 5. Run the Connectivity Test
+```bash
+cd backend/pet-service
+python -m pip install -r requirements.txt
+python test_cosmos_emulator.py
+```
+Expected last line:
+```
+Cosmos emulator connectivity test passed.
+```
+
 ## 🎓 Learning Path and Tips
 
 ### Recommended Approach
