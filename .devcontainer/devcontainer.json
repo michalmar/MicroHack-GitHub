@@ -1,6 +1,10 @@
 {
+	"name": "MicroHack-GitHub",
 	"image": "mcr.microsoft.com/devcontainers/universal:2",
-    "forwardPorts": [3000, 8010, 8020, 8030, 8081],
+	"remoteUser": "vscode",
+	"workspaceFolder": "/workspaces/MicroHack-GitHub",
+	"postCreateCommand": "az version",
+	"forwardPorts": [3000, 8010, 8020, 8030, 8081],
 	"portsAttributes": {
 		"3000": {
 			"label": "frontend"
@@ -19,6 +23,33 @@
 		},
 		"8081": {
 			"label": "cosmosdb-emulator"
+		}
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/azure-cli:1": {
+			"version": "latest"
+		}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"humao.rest-client",
+				"GitHub.vscode-pull-request-github",
+				"ms-python.python"
+			],
+			"settings": {
+				"dotnet.defaultSolution": "dotnet/LegoCatalog.sln",
+				"editor.formatOnSave": true,
+				"bicep.trace.server": "Off",
+				"bicep.suppressGitIgnoreWarning": true,
+				"github.copilot.enable": {
+					"*": true
+				},
+				"terminal.integrated.defaultProfile.linux": "bash"
+			}
 		}
 	}
 }
