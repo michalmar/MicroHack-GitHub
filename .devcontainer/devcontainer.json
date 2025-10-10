@@ -1,8 +1,8 @@
 {
 	"name": "MicroHack-GitHub",
-	"image": "mcr.microsoft.com/devcontainers/universal:2",
+	"image": "mcr.microsoft.com/devcontainers/python:3.11",
 	"remoteUser": "vscode",
-	"workspaceFolder": "/workspaces/MicroHack-GitHub",
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 	"postCreateCommand": "az version",
 	"forwardPorts": [3000, 8010, 8020, 8030, 8081],
 	"portsAttributes": {
@@ -41,10 +41,7 @@
 				"ms-python.python"
 			],
 			"settings": {
-				"dotnet.defaultSolution": "dotnet/LegoCatalog.sln",
 				"editor.formatOnSave": true,
-				"bicep.trace.server": "Off",
-				"bicep.suppressGitIgnoreWarning": true,
 				"github.copilot.enable": {
 					"*": true
 				},
