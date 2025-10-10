@@ -5,9 +5,45 @@
 PET_SERVICE_PORT=8010
 ACTIVITY_SERVICE_PORT=8020
 ACCESSORY_SERVICE_PORT=8030
+FRONTEND_PORT=3000
+COSMOS_CONTAINER_NAME="cosmos-emulator"
+FRONTEND_CONTAINER_NAME="petpal-ui"
+
+# Check if Codespaces URL parameter is provided
+if [ $# -ne 1 ]; then
+    echo "❌ Error: Codespaces URL parameter is required"
+    echo ""
+    echo "Usage: $0 <codespaces-url>"
+    echo "Example: $0 https://organic-journey-v6wj64pv64526wp4.github.dev/"
+    echo ""
+    exit 1
+fi
+
+CODESPACES_URL="$1"
+# Remove trailing slash if present
+CODESPACES_URL="${CODESPACES_URL%/}"
+
+# Extract the codespace name from the URL (e.g., organic-journey-v6wj64pv64526wp4)
+CODESPACE_NAME=$(echo "$CODESPACES_URL" | sed -E 's|https?://([^.]+)\.github\.dev/?|\1|')
+
+if [ -z "$CODESPACE_NAME" ]; then
+    echo "❌ Error: Invalid Codespaces URL format"
+    echo "Expected format: https://<codespace-name>.github.dev/"
+    exit 1
+fi
+
+# Construct the forwarded port URLs
+PETS_URL="https://${CODESPACE_NAME}-${PET_SERVICE_PORT}.app.github.dev"
+ACTIVITIES_URL="https://${CODESPACE_NAME}-${ACTIVITY_SERVICE_PORT}.app.github.dev"
+ACCESSORIES_URL="https://${CODESPACE_NAME}-${ACCESSORY_SERVICE_PORT}.app.github.dev"
 
 echo "🚀 Starting MicroHack Backend Services..."
 echo "========================================"
+echo "🌐 Codespaces URL: $CODESPACES_URL"
+echo "🔗 Pet Service URL: $PETS_URL"
+echo "🔗 Activity Service URL: $ACTIVITIES_URL"
+echo "🔗 Accessory Service URL: $ACCESSORIES_URL"
+echo ""
 
 # Function to check if port is available
 check_port() {
@@ -29,6 +65,11 @@ cleanup() {
         echo "   Stopping process $job..."
         kill $job 2>/dev/null
     done
+
+    if command -v docker >/dev/null 2>&1; then
+        echo "   Removing Docker containers..."
+        docker rm -f "$FRONTEND_CONTAINER_NAME" "$COSMOS_CONTAINER_NAME" >/dev/null 2>&1 || true
+    fi
     
     echo "✅ All services stopped"
     exit 0
@@ -42,6 +83,48 @@ cd "$(dirname "$0")"
 PROJECT_ROOT=$(pwd)
 
 echo "📁 Project root: $PROJECT_ROOT"
+echo ""
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ Docker is required to run the Cosmos DB emulator and frontend. Please install Docker and try again."
+    exit 1
+fi
+
+echo "🐳 Preparing Docker prerequisites..."
+docker container rm -f "$COSMOS_CONTAINER_NAME" "$FRONTEND_CONTAINER_NAME" >/dev/null 2>&1 || true
+
+echo "   ⬇️  Pulling Cosmos DB emulator image..."
+if ! docker pull mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest; then
+    echo "❌ Failed to pull Cosmos DB emulator image."
+    exit 1
+fi
+
+echo "   ⬇️  Pulling latest frontend image..."
+if ! docker pull ghcr.io/michalmar/petpal-ui:latest; then
+    echo "❌ Failed to pull frontend image."
+    exit 1
+fi
+
+echo "   🚀 Starting Azure Cosmos DB Emulator..."
+if ! docker run \
+   --name "$COSMOS_CONTAINER_NAME" \
+   --detach \
+   --publish 8081:8081 \
+   --publish 10250-10255:10250-10255 \
+   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest >/dev/null; then
+    echo "❌ Failed to start Cosmos DB emulator container."
+    exit 1
+fi
+
+# Wait briefly for the emulator to initialize
+sleep 5
+
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+    echo "   ⚠️  Environment variable GITHUB_TOKEN not set. Frontend will start without GitHub integration."
+fi
+
+
+echo "✅ Docker services ready"
 echo ""
 
 # Check if ports are available
@@ -137,8 +220,7 @@ fi
 
 # Start Accessory Service (port 8002)
 echo ""
-echo "# Start Accessory Service
-echo "🛍️ Starting Accessory Service on port $ACCESSORY_SERVICE_PORT...""
+echo "🛍️ Starting Accessory Service on port $ACCESSORY_SERVICE_PORT..."
 cd "$PROJECT_ROOT/backend/accessory-service"
 
 if [ ! -d "venv" ]; then
@@ -204,6 +286,57 @@ echo ""
 echo "💡 Prerequisites:"
 echo "   🗄️ Azure CosmosDB Emulator should be running on http://localhost:8081"
 echo "   🔧 Or update .env files with your Azure CosmosDB credentials"
+echo ""
+echo "🏥 Running health checks..."
+echo ""
+
+# Health check for Pet Service
+echo "   Checking Pet Service health..."
+PET_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$PET_SERVICE_PORT/health)
+if [ "$PET_HEALTH" = "200" ]; then
+    echo "   ✅ Pet Service health check passed (HTTP $PET_HEALTH)"
+else
+    echo "   ⚠️  Pet Service health check returned HTTP $PET_HEALTH"
+fi
+
+# Health check for Activity Service
+echo "   Checking Activity Service health..."
+ACTIVITY_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$ACTIVITY_SERVICE_PORT/health)
+if [ "$ACTIVITY_HEALTH" = "200" ]; then
+    echo "   ✅ Activity Service health check passed (HTTP $ACTIVITY_HEALTH)"
+else
+    echo "   ⚠️  Activity Service health check returned HTTP $ACTIVITY_HEALTH"
+fi
+
+# Health check for Accessory Service
+echo "   Checking Accessory Service health..."
+ACCESSORY_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$ACCESSORY_SERVICE_PORT/health)
+if [ "$ACCESSORY_HEALTH" = "200" ]; then
+    echo "   ✅ Accessory Service health check passed (HTTP $ACCESSORY_HEALTH)"
+else
+    echo "   ⚠️  Accessory Service health check returned HTTP $ACCESSORY_HEALTH"
+fi
+
+echo ""
+echo "🎨 Starting Frontend UI..."
+echo ""
+
+# Start Frontend Docker Container
+echo "   🚀 Starting Frontend UI container..."
+if docker run -d \
+   -p $FRONTEND_PORT:80 \
+   -e VITE_API_PETS_URL="$PETS_URL" \
+   -e VITE_API_ACTIVITIES_URL="$ACTIVITIES_URL" \
+   -e VITE_API_ACCESSORIES_URL="$ACCESSORIES_URL" \
+   -e VITE_API_GITHUB_TOKEN="$GITHUB_TOKEN" \
+   --name "$FRONTEND_CONTAINER_NAME" \
+   ghcr.io/michalmar/petpal-ui:latest >/dev/null 2>&1; then
+    echo "   ✅ Frontend UI started successfully"
+    echo "   🌐 Frontend URL: https://${CODESPACE_NAME}-${FRONTEND_PORT}.app.github.dev"
+else
+    echo "   ⚠️  Failed to start Frontend UI container (may already be running)"
+fi
+
 echo ""
 echo "⚠️  Press Ctrl+C to stop all services"
 echo ""

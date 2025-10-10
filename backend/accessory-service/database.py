@@ -1,139 +1,132 @@
 """
 Azure CosmosDB Service for Accessory Management
 
-This module provides a service layer for interacting with Azure CosmosDB
-following Azure best practices for authentication, error handling, and performance.
+This module provides the database service layer for accessories using Azure CosmosDB.
+It mirrors the implementation used by the activity service to ensure consistent
+initialization, error handling, and search capabilities.
 """
 
 import logging
 import os
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from azure.cosmos import CosmosClient, exceptions as cosmos_exceptions, PartitionKey
+from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos import exceptions as cosmos_exceptions
 
-from config import get_settings
 from models import Accessory, AccessoryCreate, AccessoryUpdate, AccessorySearchFilters
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class AccessoryCosmosDBService:
-    """
-    Service class for Azure CosmosDB operations for accessories
-    
-    Implements Azure best practices:
-    - Uses key-based authentication for CosmosDB
-    - Implements proper error handling and retry logic
-    - Uses connection pooling and proper resource management
-    """
-    
-    def __init__(self):
-        self.settings = get_settings()
+class AccessoryCosmosService:
+    """Service class for managing accessories in Azure CosmosDB."""
+
+    def __init__(
+        self,
+        cosmos_endpoint: str,
+        cosmos_key: str,
+        database_name: str = "accessoryservice",
+        container_name: str = "accessories",
+    ):
+        """Initialize the CosmosDB service for accessories."""
+        self.cosmos_endpoint = cosmos_endpoint
+        self.cosmos_key = cosmos_key
+        self.database_name = database_name
+        self.container_name = container_name
+
         self.client: Optional[CosmosClient] = None
         self.database = None
         self.container = None
-        self._initialized = False
+
+        logger.info("AccessoryCosmosService initialized with lazy loading")
+
+    def _build_cosmos_client_options(self) -> Dict[str, Any]:
+        """Build CosmosClient configuration for consistent usage across services."""
+        disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        options: Dict[str, Any] = {
+            "url": self.cosmos_endpoint,
+            "credential": self.cosmos_key,
+            "connection_timeout": 30,
+            "request_timeout": 30,
+        }
+        if disable_ssl_verify:
+            options["connection_verify"] = False  # type: ignore[arg-type]
+            logger.warning(
+                "COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)"
+            )
+        return options
 
     def _ensure_initialized(self):
-        """Ensure CosmosDB client is initialized (lazy initialization)"""
-        if self._initialized:
-            return
-            
-        try:
-            logger.info("Initializing CosmosDB connection with key-based authentication")
-            
-            # Create CosmosDB client with key authentication
-            # Support optional SSL verification disable for local emulator scenarios only.
-            disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
-
-            cosmos_kwargs = {
-                "credential": self.settings.cosmos_key,
-                "connection_timeout": 30,
-                "request_timeout": 30,
-            }
-            if disable_ssl_verify:
-                cosmos_kwargs["connection_verify"] = False  # type: ignore[arg-type]
-                logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
-
-            endpoint = self.settings.cosmos_endpoint
+        """Ensure the CosmosDB client, database, and container are initialized."""
+        if self.client is None:
+            logger.info("Initializing CosmosDB client...")
+            cosmos_client_options = self._build_cosmos_client_options()
+            endpoint = cosmos_client_options["url"]
             if endpoint.startswith("http://"):
-                logger.warning("COSMOS_ENDPOINT uses http:// – prefer https:// for production parity.")
+                logger.warning("cosmos_endpoint uses http:// – prefer https:// for production parity.")
+            self.client = CosmosClient(**cosmos_client_options)
 
-            self.client = CosmosClient(endpoint, **cosmos_kwargs)
-            
-            # Get database and container references
-            self.database = self.client.get_database_client(self.settings.cosmos_database_name)
-            self.container = self.database.get_container_client(self.settings.cosmos_container_name)
-            
-            self._initialized = True
-            logger.info(f"Successfully connected to CosmosDB: {self.settings.cosmos_database_name}/{self.settings.cosmos_container_name}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize CosmosDB client: {e}")
-            raise
+        if self.database is None:
+            logger.info(f"Getting database: {self.database_name}")
+            self.database = self.client.get_database_client(self.database_name)
+
+        if self.container is None:
+            logger.info(f"Getting container: {self.container_name}")
+            self.container = self.database.get_container_client(self.container_name)
 
     async def health_check(self) -> Dict[str, Any]:
-        """
-        Health check for the CosmosDB connection
-        
-        If database or container doesn't exist, creates them and seeds with sample data
-        """
+        """Perform health check and auto-create database/container if needed."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
-            
-            # Try to perform a simple query to verify connection
+
             try:
-                list(self.container.query_items(
-                    query="SELECT TOP 1 c.id FROM c",
-                    enable_cross_partition_query=True,
-                    max_item_count=1
-                ))
-                return {"status": "healthy", "database": self.settings.cosmos_database_name}
-                
+                list(
+                    self.container.query_items(
+                        query="SELECT TOP 1 c.id FROM c",
+                        enable_cross_partition_query=True,
+                        max_item_count=1,
+                    )
+                )
+                return {"status": "healthy", "database": self.database_name}
             except (cosmos_exceptions.CosmosResourceNotFoundError, cosmos_exceptions.CosmosHttpResponseError) as e:
-                # Database or container doesn't exist - check if it's a "not found" type error
                 error_message = str(e).lower()
-                if "does not exist" in error_message or "notfound" in error_message or (hasattr(e, 'status_code') and e.status_code in [404, 500]):
+                if "does not exist" in error_message or "notfound" in error_message or (
+                    hasattr(e, "status_code") and e.status_code in [404, 500]
+                ):
                     logger.info("Database or container not found. Creating and seeding with sample data...")
-                    await self._create_database_and_seed()
-                    return {
-                        "status": "healthy", 
-                        "database": self.settings.cosmos_database_name,
-                        "message": "Database and container created successfully with sample data"
-                    }
-                else:
-                    # Re-raise if it's a different type of error
-                    raise
-                
+                    result = await self._create_database_and_seed()
+                    if result["status"] == "healthy":
+                        return {
+                            "status": "healthy",
+                            "database": self.database_name,
+                            "message": "Database and container created successfully with sample data",
+                        }
+                    return result
+                raise
+
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return {"status": "unhealthy", "error": str(e)}
 
-    async def _create_database_and_seed(self):
-        """Create database, container and seed with sample data"""
+    async def _create_database_and_seed(self) -> Dict[str, Any]:
+        """Create database, container, and seed with sample accessory data."""
         try:
-            # Create database if it doesn't exist
-            logger.info(f"Creating database: {self.settings.cosmos_database_name}")
-            database = self.client.create_database_if_not_exists(
-                id=self.settings.cosmos_database_name
-            )
-            
-            # Create container if it doesn't exist
-            logger.info(f"Creating container: {self.settings.cosmos_container_name}")
-            container = database.create_container_if_not_exists(
-                id=self.settings.cosmos_container_name,
+            logger.info(f"Creating database: {self.database_name}")
+            database = self.client.create_database_if_not_exists(id=self.database_name)
+
+            logger.info(f"Creating container: {self.container_name}")
+            database.create_container_if_not_exists(
+                id=self.container_name,
                 partition_key=PartitionKey(path="/id"),
-                offer_throughput=400  # Minimum RU/s for manual throughput
+                offer_throughput=400,
             )
-            
-            # Update our references
-            self.database = self.client.get_database_client(self.settings.cosmos_database_name)
-            self.container = self.database.get_container_client(self.settings.cosmos_container_name)
-            
-            # Seed with sample data
+
+            self.database = self.client.get_database_client(self.database_name)
+            self.container = self.database.get_container_client(self.container_name)
+
             logger.info("Seeding container with sample accessory data")
             sample_accessories = [
                 {
@@ -146,7 +139,7 @@ class AccessoryCosmosDBService:
                     "imageUrl": "",
                     "description": "Durable rope",
                     "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
+                    "updatedAt": datetime.utcnow().isoformat(),
                 },
                 {
                     "id": "x2",
@@ -158,55 +151,43 @@ class AccessoryCosmosDBService:
                     "imageUrl": "",
                     "description": "Soft chews",
                     "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                }
+                    "updatedAt": datetime.utcnow().isoformat(),
+                },
             ]
-            
-            # Insert sample accessories
+
             for accessory_data in sample_accessories:
                 try:
                     self.container.create_item(body=accessory_data)
                     logger.info(f"Seeded accessory: {accessory_data['name']} ({accessory_data['id']})")
                 except cosmos_exceptions.CosmosResourceExistsError:
-                    # Accessory already exists, skip
                     logger.info(f"Accessory {accessory_data['name']} ({accessory_data['id']}) already exists, skipping")
-                    pass
-            
+
             logger.info("Database setup and seeding completed successfully")
-            
+            return {"status": "healthy", "message": "Database and container created successfully with sample data"}
         except Exception as e:
             logger.error(f"Failed to create database and seed data: {e}")
-            raise
+            return {"status": "unhealthy", "error": f"Failed to create database: {e}"}
 
     def create_accessory(self, accessory_data: AccessoryCreate) -> Accessory:
-        """
-        Create a new accessory in CosmosDB
-        
-        Args:
-            accessory_data: Accessory creation data
-            
-        Returns:
-            Created Accessory object
-            
-        Raises:
-            CosmosDBError: If creation fails
-        """
+        """Create a new accessory in CosmosDB."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
-            # Create Accessory object with generated ID and timestamps
-            accessory = Accessory(**accessory_data.model_dump())
-            accessory_dict = accessory.model_dump(mode='json')
-            
-            # Insert into CosmosDB
+
+            accessory = Accessory(
+                **accessory_data.model_dump(),
+                createdAt=datetime.utcnow(),
+                updatedAt=datetime.utcnow(),
+            )
+            accessory_dict = accessory.model_dump(mode="json")
+
             response = self.container.create_item(body=accessory_dict)
-            logger.info(f"Created accessory with ID: {accessory.id}")
-            
+            logger.info(f"Created accessory: {response['id']}")
+
             return Accessory(**response)
-            
         except cosmos_exceptions.CosmosResourceExistsError:
-            logger.error(f"Accessory with ID {accessory.id} already exists")
-            raise ValueError(f"Accessory with ID {accessory.id} already exists")
+            accessory_id = accessory_dict["id"]
+            logger.error(f"Accessory with ID {accessory_id} already exists")
+            raise ValueError(f"Accessory with ID {accessory_id} already exists")
         except cosmos_exceptions.CosmosHttpResponseError as e:
             logger.error(f"CosmosDB HTTP error creating accessory: {e}")
             raise
@@ -215,21 +196,12 @@ class AccessoryCosmosDBService:
             raise
 
     def get_accessory(self, accessory_id: str) -> Optional[Accessory]:
-        """
-        Get an accessory by ID
-        
-        Args:
-            accessory_id: Accessory identifier
-            
-        Returns:
-            Accessory object if found, None otherwise
-        """
+        """Get an accessory by ID."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
             response = self.container.read_item(item=accessory_id, partition_key=accessory_id)
+            logger.info(f"Retrieved accessory: {accessory_id}")
             return Accessory(**response)
-            
         except cosmos_exceptions.CosmosResourceNotFoundError:
             logger.info(f"Accessory not found: {accessory_id}")
             return None
@@ -241,40 +213,25 @@ class AccessoryCosmosDBService:
             raise
 
     def update_accessory(self, accessory_id: str, update_data: AccessoryUpdate) -> Optional[Accessory]:
-        """
-        Update an accessory by ID
-        
-        Args:
-            accessory_id: Accessory identifier
-            update_data: Accessory update data
-            
-        Returns:
-            Updated Accessory object if successful, None if not found
-        """
+        """Update an accessory by ID."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
-            # Get existing accessory
             existing_accessory = self.get_accessory(accessory_id)
             if not existing_accessory:
                 return None
-            
-            # Apply updates
+
             update_dict = update_data.model_dump(exclude_unset=True)
             if not update_dict:
-                return existing_accessory  # No changes
-            
-            # Update the existing accessory data (with JSON serialization)
-            accessory_dict = existing_accessory.model_dump(mode='json')
+                return existing_accessory
+
+            accessory_dict = existing_accessory.model_dump(mode="json")
             accessory_dict.update(update_dict)
-            accessory_dict['updatedAt'] = datetime.utcnow().isoformat()
-            
-            # Update in CosmosDB
+            accessory_dict["updatedAt"] = datetime.utcnow().isoformat()
+
             response = self.container.replace_item(item=accessory_id, body=accessory_dict)
             logger.info(f"Updated accessory: {accessory_id}")
-            
+
             return Accessory(**response)
-            
         except cosmos_exceptions.CosmosResourceNotFoundError:
             logger.info(f"Accessory not found for update: {accessory_id}")
             return None
@@ -286,22 +243,12 @@ class AccessoryCosmosDBService:
             raise
 
     def delete_accessory(self, accessory_id: str) -> bool:
-        """
-        Delete an accessory by ID
-        
-        Args:
-            accessory_id: Accessory identifier
-            
-        Returns:
-            True if deleted, False if not found
-        """
+        """Delete an accessory by ID."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
             self.container.delete_item(item=accessory_id, partition_key=accessory_id)
             logger.info(f"Deleted accessory: {accessory_id}")
             return True
-            
         except cosmos_exceptions.CosmosResourceNotFoundError:
             logger.info(f"Accessory not found for deletion: {accessory_id}")
             return False
@@ -313,58 +260,44 @@ class AccessoryCosmosDBService:
             raise
 
     def search_accessories(self, filters: AccessorySearchFilters) -> List[Accessory]:
-        """
-        Search accessories with filtering support
-        
-        Args:
-            filters: Search and filter parameters
-            
-        Returns:
-            List of Accessory objects matching the criteria
-        """
+        """Search accessories with filtering support."""
         try:
-            # Ensure client is initialized
             self._ensure_initialized()
-            # Build SQL query based on filters
-            query_parts = ["SELECT * FROM c"]
-            parameters = []
-            conditions = []
 
-            # Add search condition (name or description) - emulator-compatible version
+            query_parts = ["SELECT * FROM c"]
+            parameters: List[Dict[str, Any]] = []
+            conditions: List[str] = []
+
             if filters.search:
                 conditions.append("(CONTAINS(c.name, @search) OR CONTAINS(c.description, @search))")
                 parameters.append({"name": "@search", "value": filters.search})
 
-            # Add type filter
             if filters.type:
                 conditions.append("c.type = @type")
                 parameters.append({"name": "@type", "value": filters.type})
 
-            # Add low stock filter
             if filters.lowStockOnly:
                 conditions.append("c.stock < 10")
 
-            # Add WHERE clause if there are conditions
             if conditions:
                 query_parts.append("WHERE " + " AND ".join(conditions))
 
-            # Add ordering and pagination
             query_parts.append("ORDER BY c.createdAt DESC")
             query_parts.append(f"OFFSET {filters.offset} LIMIT {filters.limit}")
 
             query = " ".join(query_parts)
             logger.debug(f"Executing query: {query} with parameters: {parameters}")
 
-            # Execute query
-            items = list(self.container.query_items(
-                query=query,
-                parameters=parameters,
-                enable_cross_partition_query=True,
-                max_item_count=filters.limit
-            ))
+            items = list(
+                self.container.query_items(
+                    query=query,
+                    parameters=parameters,
+                    enable_cross_partition_query=True,
+                    max_item_count=filters.limit,
+                )
+            )
 
-            # Convert to Accessory objects
-            accessories = []
+            accessories: List[Accessory] = []
             for item in items:
                 try:
                     accessories.append(Accessory(**item))
@@ -372,9 +305,8 @@ class AccessoryCosmosDBService:
                     logger.warning(f"Failed to parse accessory item: {e}")
                     continue
 
-            logger.info(f"Found {len(accessories)} accessories matching criteria")
+            logger.info(f"Search returned {len(accessories)} accessories")
             return accessories
-
         except cosmos_exceptions.CosmosHttpResponseError as e:
             logger.error(f"CosmosDB HTTP error searching accessories: {e}")
             raise
@@ -383,27 +315,19 @@ class AccessoryCosmosDBService:
             raise
 
     def get_all_accessories(self, limit: int = 100, offset: int = 0) -> List[Accessory]:
-        """
-        Get all accessories with pagination
-        
-        Args:
-            limit: Maximum number of accessories to return
-            offset: Number of accessories to skip
-            
-        Returns:
-            List of Accessory objects
-        """
+        """Get all accessories with pagination support."""
         filters = AccessorySearchFilters(limit=limit, offset=offset)
         return self.search_accessories(filters)
 
 
-# Singleton instance
-_cosmos_service: Optional[AccessoryCosmosDBService] = None
+def get_cosmos_service() -> AccessoryCosmosService:
+    """Factory function to create and return a CosmosDB service instance."""
+    from config import get_settings
 
-
-def get_cosmos_service() -> AccessoryCosmosDBService:
-    """Get singleton CosmosDB service instance"""
-    global _cosmos_service
-    if _cosmos_service is None:
-        _cosmos_service = AccessoryCosmosDBService()
-    return _cosmos_service
+    settings = get_settings()
+    return AccessoryCosmosService(
+        cosmos_endpoint=settings.cosmos_endpoint,
+        cosmos_key=settings.cosmos_key,
+        database_name=settings.cosmos_database_name,
+        container_name=settings.cosmos_container_name,
+    )

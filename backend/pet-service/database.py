@@ -38,6 +38,20 @@ class CosmosDBService:
 
 
 
+    def _build_cosmos_client_options(self) -> Dict[str, Any]:
+        """Build CosmosClient configuration for consistent usage across services."""
+        disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        options: Dict[str, Any] = {
+            "url": self.settings.cosmos_endpoint,
+            "credential": self.settings.cosmos_key,
+            "connection_timeout": 30,
+            "request_timeout": 30,
+        }
+        if disable_ssl_verify:
+            options["connection_verify"] = False  # type: ignore[arg-type]
+            logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification is DISABLED (emulator/dev only)")
+        return options
+
     def _ensure_initialized(self):
         """Ensure CosmosDB client is initialized (lazy initialization)"""
         if self._initialized:
@@ -46,29 +60,13 @@ class CosmosDBService:
         try:
             logger.info("Initializing CosmosDB connection with key-based authentication")
             
-            # Create CosmosDB client with key authentication
-            # Allow temporary SSL verification disable for local emulator scenarios
-            # (DO NOT use in production). Uses same flag name as test script for consistency.
-            disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
-
-            cosmos_kwargs = {
-                "credential": self.settings.cosmos_key,
-                "connection_timeout": 30,
-                "request_timeout": 30,
-            }
-
-            # azure-cosmos >=4.x supports 'connection_verify' to control certificate verification.
-            # If the flag is set, we explicitly disable verification.
-            if disable_ssl_verify:
-                cosmos_kwargs["connection_verify"] = False  # type: ignore[arg-type]
-                logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification is DISABLED (emulator/dev only)")
-
-            # Prefer https endpoint; if user provided http we still pass it through, but warn.
-            endpoint = self.settings.cosmos_endpoint
+            cosmos_client_options = self._build_cosmos_client_options()
+            endpoint = cosmos_client_options["url"]
             if endpoint.startswith("http://"):
                 logger.warning("COSMOS_ENDPOINT is using http:// – consider switching to https:// for closer parity with production.")
 
-            self.client = CosmosClient(endpoint, **cosmos_kwargs)
+            self.client = CosmosClient(**cosmos_client_options)
+            logger.info(f"Connected to CosmosDB endpoint: {endpoint}")
             
             # Get database and container references
             self.database = self.client.get_database_client(self.settings.cosmos_database_name)

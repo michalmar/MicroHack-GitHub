@@ -8,7 +8,7 @@ logging, and performance optimization.
 
 import os
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from azure.cosmos import CosmosClient, PartitionKey
 from azure.cosmos import exceptions as cosmos_exceptions
@@ -49,24 +49,29 @@ class ActivityCosmosService:
         
         logger.info("ActivityCosmosService initialized with lazy loading")
 
+    def _build_cosmos_client_options(self) -> Dict[str, Any]:
+        """Build CosmosClient configuration for consistent usage across services."""
+        disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        options: Dict[str, Any] = {
+            "url": self.cosmos_endpoint,
+            "credential": self.cosmos_key,
+            "connection_timeout": 30,
+            "request_timeout": 30,
+        }
+        if disable_ssl_verify:
+            options["connection_verify"] = False  # type: ignore[arg-type]
+            logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
+        return options
+
     def _ensure_initialized(self):
         """Ensure the CosmosDB client, database, and container are initialized"""
         if self.client is None:
             logger.info("Initializing CosmosDB client...")
-            disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
-            cosmos_kwargs = {
-                "credential": self.cosmos_key,
-                "connection_timeout": 30,
-                "request_timeout": 30,
-            }
-            if disable_ssl_verify:
-                cosmos_kwargs["connection_verify"] = False  # type: ignore[arg-type]
-                logger.warning("COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
-
-            if self.cosmos_endpoint.startswith("http://"):
+            cosmos_client_options = self._build_cosmos_client_options()
+            endpoint = cosmos_client_options["url"]
+            if endpoint.startswith("http://"):
                 logger.warning("cosmos_endpoint uses http:// – prefer https:// for production parity.")
-
-            self.client = CosmosClient(self.cosmos_endpoint, **cosmos_kwargs)
+            self.client = CosmosClient(**cosmos_client_options)
             
         if self.database is None:
             logger.info(f"Getting database: {self.database_name}")

@@ -1,0 +1,24 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
+    "forwardPorts": [3000, 8010, 8020, 8030, 8081],
+	"portsAttributes": {
+		"3000": {
+			"label": "frontend"
+		},
+		"8010": {
+			"label": "backend-pets",
+			"visible": "public"
+		},
+		"8020": {
+			"label": "backend-activities",
+			"visible": "public"
+		},
+		"8030": {
+			"label": "backend-accessories",
+			"visible": "public"
+		},
+		"8081": {
+			"label": "cosmosdb-emulator"
+		}
+	}
+}

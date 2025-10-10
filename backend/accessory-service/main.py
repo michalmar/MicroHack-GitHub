@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 from models import Accessory, AccessoryCreate, AccessoryUpdate, AccessorySearchFilters
-from database import get_cosmos_service, AccessoryCosmosDBService
+from database import get_cosmos_service, AccessoryCosmosService
 
 # Configure logging
 logging.basicConfig(
@@ -57,7 +57,7 @@ app.add_middleware(
 
 
 # Dependency to get CosmosDB service
-def get_db() -> AccessoryCosmosDBService:
+def get_db() -> AccessoryCosmosService:
     """Dependency to get CosmosDB service instance"""
     return get_cosmos_service()
 
@@ -95,7 +95,7 @@ async def root():
 
 
 @app.get("/health", tags=["Health"])
-async def health_check(db: AccessoryCosmosDBService = Depends(get_db)):
+async def health_check(db: AccessoryCosmosService = Depends(get_db)):
     """Health check endpoint"""
     try:
         cosmos_health = await db.health_check()
@@ -119,7 +119,7 @@ def get_accessories(
     lowStockOnly: Optional[bool] = Query(None, description="Show only low stock items (stock < 10)"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
-    db: AccessoryCosmosDBService = Depends(get_db)
+    db: AccessoryCosmosService = Depends(get_db)
 ):
     """
     Get accessories with optional filtering and pagination
@@ -167,7 +167,7 @@ def get_accessories(
 @app.post("/api/accessories", response_model=Accessory, status_code=status.HTTP_201_CREATED, tags=["Accessories"])
 def create_accessory(
     accessory_data: AccessoryCreate,
-    db: AccessoryCosmosDBService = Depends(get_db)
+    db: AccessoryCosmosService = Depends(get_db)
 ):
     """
     Create a new accessory
@@ -201,7 +201,7 @@ def create_accessory(
 @app.get("/api/accessories/{accessory_id}", response_model=Accessory, tags=["Accessories"])
 def get_accessory(
     accessory_id: str,
-    db: AccessoryCosmosDBService = Depends(get_db)
+    db: AccessoryCosmosService = Depends(get_db)
 ):
     """
     Get a specific accessory by ID
@@ -232,7 +232,7 @@ def get_accessory(
 def update_accessory(
     accessory_id: str,
     update_data: AccessoryUpdate,
-    db: AccessoryCosmosDBService = Depends(get_db)
+    db: AccessoryCosmosService = Depends(get_db)
 ):
     """
     Update an accessory by ID (partial update)
@@ -264,7 +264,7 @@ def update_accessory(
 @app.delete("/api/accessories/{accessory_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Accessories"])
 def delete_accessory(
     accessory_id: str,
-    db: AccessoryCosmosDBService = Depends(get_db)
+    db: AccessoryCosmosService = Depends(get_db)
 ):
     """
     Delete an accessory by ID
