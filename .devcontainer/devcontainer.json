@@ -1,7 +1,6 @@
 {
 	"name": "MicroHack-GitHub",
-	"image": "mcr.microsoft.com/devcontainers/python:3.11",
-	"remoteUser": "vscode",
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
 	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 	"postCreateCommand": "az version",
 	"forwardPorts": [3000, 8010, 8020, 8030, 8081],
@@ -26,9 +25,8 @@
 		}
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/azure-cli:1": {
-			"version": "latest"
-		}
+		"ghcr.io/devcontainers/features/azure-cli:1": {},
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
 	},
 	"customizations": {
 		"vscode": {
