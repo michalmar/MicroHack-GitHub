@@ -1,81 +1,94 @@
-# Challenge 02: Introduction Exercise with GitHub Copilot
+# Challenge 02 – GitHub Spark Introduction & Prototype Exercise
 
-## Overview
+## 1. What is GitHub Spark (Quick Primer)
+GitHub Spark lets you describe an app in natural language and quickly generate a full‑stack web application (frontend + backend services, data storage, auth, and optional AI features). You can iteratively refine using prompts, tweak code directly, or open a synced GitHub Codespace. One‑click deployment provisions managed infrastructure (Azure Container Apps + a small managed key‑value data store). Built‑in GitHub authentication, AI model integration, and repository syncing make it ideal for rapid ideation and teaching modern app lifecycles.
 
-A short introduction to GitHub Copilot through a simple exercise. The purpose is to unify the level of AI assistant usage and verify participants' baseline skills.
+![GitHub Spark](../../solutions/challenge-02/docs/spark.png)
 
-## Learning Objectives
+### Key Capabilities (Summarized)
+- Natural language to working React/TypeScript app
+- Automatic lightweight data store (Azure‑backed key/value)
+- Built‑in GitHub auth & visibility controls
+- Add AI features by prompting (e.g., summary, tagging)
+- One‑click deploy to managed runtime
+- Two‑way sync with a GitHub repository & Codespaces
+- Collaboration via standard GitHub workflow (issues, PRs, Actions)
 
-- Familiarize yourself with GitHub Copilot features and capabilities
-- Learn best practices for AI-assisted development
-- Understand how to write effective prompts for code generation
-- Establish baseline proficiency with AI development tools
+### When to Use Spark Here
+For PetPal you need a fast, low‑friction prototype that shows UI integration points for three microservices (Pets, Activities, Accessories). Spark accelerates scaffolding so you can focus on domain modeling, UX, and collaboration patterns rather than initial boilerplate.
 
-## Prerequisites
+## 2. PetPal Context Recap
+PetPal is a playful microservices demo app for managing virtual pets:
+1. Pet Service – already implemented (CRUD, persistence).
+2. Activity Service – tracks interactions/activities with pets.
+3. Accessory Service – planned CRUD service (teams will implement later).
 
-- GitHub Copilot access (license will be provided if needed)
-- Visual Studio Code or compatible IDE with Copilot extension
-- Basic programming knowledge in your preferred language
+Your goal in this challenge: Produce a front‑end prototype (not production) that visually and structurally anticipates integrating all three services.
 
-## Tasks
+## 3. Challenge Objectives
+Create (in GitHub Spark) an initial PetPal UI concept that:
+1. Create a simple frontend-only web application with to our Pet Pal website.
+2. Provides navigation affordances/placeholders for: Pets, Activities, Accessories.
+3. Includes a view layout all pets (cards/list) with possibility of CRUD operations.
+4. Anticipates asynchronous data loading (loading states / empty states).
+5. Applies the specified brand & vibe guidelines (below).
+6. Experiment with design, dark mode, and playful elements (subtle animations, emojis).
 
-### Task 1: Copilot Setup and Configuration
-1. Install GitHub Copilot extension in VS Code
-2. Sign in and verify your Copilot license
-3. Explore Copilot settings and preferences
-4. Test basic autocomplete functionality
+You do NOT need real API calls yet—stub data or mock functions are fine.
 
-### Task 2: Simple Coding Exercise
-Choose one of the following exercises to complete with Copilot assistance:
+## 4. Acceptance Criteria
+To consider the challenge complete:
+- A Spark project (link or exported repo) exists with the above sections scaffolded.
+- Visual design matches palette & tone (cards, subtle shadows, rounded corners).
+- Dark mode toggle works OR a note is left describing how it will be added.
+- Components are logically grouped; no giant single file.
+- Clear placeholder comments where microservice data will be injected.
+- README in the prototype includes: data flow diagram (can be textual), component list, integration plan for each service.
+- No full Accessory Service logic—only placeholder UI & mock entries.
 
-**Option A: Pet Service Enhancement**
-- Add a new endpoint to the existing pet service
-- Use Copilot to generate API documentation
-- Create unit tests for the new functionality
 
-**Option B: Data Processing Script**
-- Create a script to process pet activity data
-- Generate data validation functions
-- Add error handling and logging
+## 6. Hints / Recommendations for Github Spark
+In the beginning, instead of one giant prompt, iterate:
+1. Seed Prompt: Describe PetPal, the three microservices conceptually, brand palette, components you need, and dark mode requirement.
+2. Refinement Prompt: Ask Spark to split into modular components with stubbed data providers for each service.
+3. UI Polish Prompt: Request consistent spacing scale (e.g., 4/8/16/24), card hover, and responsive layout (mobile: single column pet list; desktop: grid of 3–4 columns).
 
-**Option C: Frontend Component**
-- Build a simple UI component for displaying pet information
-- Use Copilot to generate CSS styles
-- Add interactive functionality
+### Prompt Crafting Tips
+- Be explicit about component names you want to see generated.
+- Mention “Use mock arrays; no external fetch yet” to prevent premature API wiring.
+- If Spark over‑implements, ask it to simplify (“Reduce complexity; remove real network calls; keep pure React components.”)
+- Use follow‑up prompts to extract a file/module list for documentation.
 
-### Task 3: Copilot Best Practices
-1. Practice writing clear, descriptive comments
-2. Learn to iterate and refine Copilot suggestions
-3. Understand when to accept, modify, or reject suggestions
-4. Explore Copilot Chat for more complex assistance
+### What NOT to Do (Guardrails)
+- Don’t implement real network calls yet.
+- Don’t build full Accessory CRUD.
+- Don’t introduce complex state libraries (Redux, Zustand) prematurely.
+- Don’t remove brand colors or substitute an unrelated design system.
 
-### Task 4: Documentation with AI
-1. Use Copilot to generate README content
-2. Create API documentation
-3. Generate code comments and explanations
+## 7. [OPTIONAL] Data & State (For Prototype Phase)
+- Use local React state or a lightweight context for global theme & mock data.
+- Keep mock data in separate modules (e.g., `mock/pets.ts`, `mock/activities.ts`).
+- Mark all fake data with a leading comment: `// MOCK DATA: Replace with real service integration in Challenge X`.
 
-## Success Criteria
+## 8. [OPTIONAL] Stretch Ideas (Do NOT Required for Completion)
+- Basic filtering (species, accessory count) – mock only.
+- Simple activity aggregation widget (“Active pets today”).
+- Skeleton loaders for initial view.
+- Export a lightweight architectural diagram (draw.io / Mermaid in README).
 
-- [ ] Successfully set up and configured GitHub Copilot
-- [ ] Completed at least one coding exercise with AI assistance
-- [ ] Demonstrated understanding of effective prompt writing
-- [ ] Generated useful documentation using Copilot
-- [ ] Can articulate best practices for AI-assisted development
 
-## Tips for Success
 
-- Start with clear, specific comments describing what you want
-- Break complex tasks into smaller, manageable pieces
-- Review and understand all generated code before accepting
-- Use Copilot Chat for explanations and complex problem-solving
-- Practice iterative refinement of prompts and suggestions
 
-## Additional Resources
+**Don't open until after you finish the challenge iterations**
+<details>
 
-- [GitHub Copilot documentation](https://docs.github.com/en/copilot)
-- [Best practices for GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/best-practices-for-using-github-copilot)
-- [Copilot prompting guide](https://docs.github.com/en/copilot/using-github-copilot/prompting-github-copilot-chat)
+<summary>Help / Solution</summary>
 
-## Solution
+![GitHub Spark PetPal Prototype](../../solutions/challenge-02/docs/spark-edit.png)
 
-[Solution Steps](/solutions/challenge-02/README.md)
+View solution here: [Challenge 02 Solution](../../solutions/challenge-02/README.md)
+
+</details>
+
+## Next Step
+Proceed to next challenge: [Challenge 03](../challenge-03/README.md)
