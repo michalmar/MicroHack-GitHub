@@ -2,87 +2,218 @@
 
 ## Overview
 
-Open a pre-prepared repository in Codespaces and make basic configuration modifications. The goal is to show that the development environment is part of versioned code and can be automated and customized.
+In this challenge, you'll set up and customize a cloud-based development environment using GitHub Codespaces for the PetPal application. You'll learn how to fork a repository, create a Codespace, and customize it with essential development tools and VS Code extensions. This demonstrates how development environments can be defined as code, making onboarding faster and environments consistent across your team.
+
+## Introduction to GitHub Codespaces
+
+**What are GitHub Codespaces?**
+
+GitHub Codespaces is a cloud-based development environment hosted by GitHub. Each codespace runs in a Docker container on a virtual machine, providing you with a fully configured development environment accessible from your browser or VS Code.
+
+**Key Benefits:**
+
+- **Instant Setup**: Start coding in seconds without installing tools locally
+- **Consistent Environments**: Every team member gets the same configuration
+- **Configuration as Code**: Dev container configurations are versioned with your code
+- **Access Anywhere**: Work from any machine with just a browser
+- **Powerful Resources**: Choose from 2 to 32 cores based on your needs
+- **Free Tier Available**: Personal accounts include monthly free usage hours
+
+**How It Works:**
+
+1. Codespaces are based on dev container configurations (`.devcontainer/devcontainer.json`)
+2. You can customize the base image, install tools, and configure VS Code extensions
+3. Changes to the configuration are versioned in your repository
+4. When someone creates a new Codespace, they automatically get your customizations
+
+[Learn more about GitHub Codespaces](https://docs.github.com/en/codespaces/overview)
 
 ## Learning Objectives
 
-- Understand the concept and benefits of cloud-based development environments
-- Learn how to configure and customize Codespaces
-- Experience consistent, reproducible development setups
-- Understand how development environment configuration can be versioned with code
+- Understand cloud-based development environments and their benefits
+- Learn to configure and customize GitHub Codespaces
+- Experience Configuration-as-Code for development environments
+- Set up a reproducible development environment for the PetPal application
+- Add Azure CLI, Docker, and essential VS Code extensions
 
 ## Prerequisites
 
-- GitHub account with Codespaces access
-- Basic understanding of containerization concepts
-- Familiarity with VS Code interface
+- GitHub account with Codespaces access (free tier available)
+- Basic familiarity with VS Code interface
+- Understanding of containerization concepts (helpful but not required)
 
 ## Tasks
 
-### Task 1: Launch Codespaces Environment
-1. Navigate to the provided repository
-2. Create a new Codespace from the main branch
-3. Wait for the environment to fully initialize
-4. Explore the pre-configured development environment
+### Task 1: Fork and Access the Repository
 
-### Task 2: Examine the Configuration
-1. Explore the `.devcontainer` folder structure
-   - Review `devcontainer.json` configuration
-   - Examine the Dockerfile or base image settings
-   - Understand the installed extensions and tools
-2. Review the workspace configuration
-   - Check VS Code settings and extensions
-   - Explore any pre-configured tasks or launch configurations
+1. **Fork the Repository**
+   - Navigate to `https://github.com/CZSK-MicroHacks/MicroHack-GitHub`
+   - Click the "Fork" button in the top-right corner
+   - Select your account as the destination
+   - Wait for the fork to complete
 
-### Task 3: Customize Your Environment
-Choose and implement several of the following customizations:
+2. **Create Your First Codespace**
+   - In your forked repository, click the green "Code" button
+   - Select the "Codespaces" tab
+   - Click "Create codespace on main"
+   - Wait for the environment to initialize (this may take 1-2 minutes)
 
-**Basic Customizations:**
-- Add a new VS Code extension to the devcontainer configuration
-- Modify the container image or add new software packages
-- Update VS Code settings or themes
-- Add custom aliases or shell configurations
+### Task 2: Explore the Current Environment
 
-**Advanced Customizations:**
-- Configure additional development tools or language servers
-- Set up custom environment variables
-- Add initialization scripts or setup commands
-- Configure port forwarding for development services
+1. **Familiarize Yourself with the Codespace**
+   - Notice the VS Code interface running in your browser (or desktop VS Code if you chose that option)
+   - Explore the file structure in the Explorer panel
+   - Open a terminal (Terminal → New Terminal)
+   
+2. **Test the PetPal Application**
+   - Navigate to the backend services directory
+   - Try running the pet-service to see what's currently available:
+     ```bash
+     cd backend/pet-service
+     python main.py
+     ```
+   - Check which tools are pre-installed:
+     ```bash
+     python --version
+     node --version
+     git --version
+     ```
 
-### Task 4: Test Your Changes
-1. Commit and push your configuration changes
-2. Create a new Codespace to test your modifications
-3. Verify that your customizations are applied automatically
-4. Share your environment with a teammate (if working in pairs)
+3. **Examine Current Configuration**
+   - Look for `.devcontainer` folder (if it exists)
+   - Note what extensions are currently installed
+   - Document what's missing for Azure development
 
-### Task 5: Environment Automation
-1. Add a setup script that runs automatically when Codespace starts
-2. Configure the development services (databases, APIs) to start automatically
-3. Create custom tasks in VS Code for common development workflows
-4. Document your environment setup for other developers
+> **Hint**: Not all repositories come with a dev container configuration. You may need to create one!
+
+### Task 3: Add Azure CLI and Docker-in-Docker Features
+
+1. **Create or Modify Dev Container Configuration**
+   - Create `.devcontainer/devcontainer.json` if it doesn't exist
+   - Add Azure CLI feature to the configuration
+   - Add Docker-in-Docker feature for container operations
+   
+   > **Hint**: Dev container features are reusable configuration packages. Look for:
+   > - Azure CLI feature: `ghcr.io/devcontainers/features/azure-cli:latest`
+   > - Docker-in-Docker feature: `ghcr.io/devcontainers/features/docker-in-docker:latest`
+   >
+   > Features go in the `"features"` section of your `devcontainer.json`
+
+2. **Configure the Base Image**
+   - Choose an appropriate base image (Python-based recommended for PetPal)
+   - Consider using: `mcr.microsoft.com/devcontainers/python:3.11`
+
+### Task 4: Add Essential VS Code Extensions
+
+Add the following extensions to your dev container configuration to enhance your development experience:
+
+- **ms-azuretools.vscode-docker**: Work with Docker containers and images
+- **GitHub.copilot**: AI-powered code completion
+- **GitHub.copilot-chat**: AI pair programming assistant
+- **humao.rest-client**: Test HTTP APIs directly from VS Code
+- **GitHub.vscode-pull-request-github**: Manage pull requests without leaving the editor
+- **ms-python.python**: Python language support and debugging
+
+> **Hint**: Extensions are added in the `"customizations"` section under `"vscode"` → `"extensions"` as an array of extension IDs.
+
+### Task 5: Rebuild and Verify Your Configuration
+
+1. **Rebuild the Codespace**
+   - After saving your configuration changes
+   - Open the Command Palette (Cmd/Ctrl + Shift + P)
+   - Type "Codespaces: Rebuild Container"
+   - Select it and wait for the rebuild to complete
+
+2. **Verify Installations**
+   - Open a new terminal
+   - Test Azure CLI:
+     ```bash
+     az --version
+     ```
+   - Test Docker:
+     ```bash
+     docker --version
+     ```
+   - Check that your extensions are installed (look in the Extensions panel)
+
+3. **Test the PetPal Services**
+   - Navigate to one of the backend services
+   - Try running it with the newly available tools
+   - Use the REST Client extension to test API endpoints (if you created `.http` files)
+
+### Task 6: Document and Commit Your Changes
+
+1. **Test Your Configuration**
+   - Create a new Codespace to ensure your configuration works from scratch
+   - Delete the old Codespace to save resources
+   - Verify all tools and extensions load automatically
+
+2. **Commit Your Configuration**
+   - Stage your `.devcontainer` changes
+   - Write a clear commit message describing the improvements
+   - Push to your forked repository
 
 ## Success Criteria
 
-- [ ] Successfully launched and used a GitHub Codespace
-- [ ] Modified the devcontainer configuration
-- [ ] Customized the development environment to your preferences
-- [ ] Tested configuration changes in a new Codespace
-- [ ] Understand how to version and share development environment configurations
-- [ ] Created automated setup processes for the development environment
+- [ ] Successfully forked the MicroHack-GitHub repository
+- [ ] Created and launched a GitHub Codespace
+- [ ] Explored the PetPal application structure
+- [ ] Created or modified `.devcontainer/devcontainer.json` with:
+  - [ ] Azure CLI feature
+  - [ ] Docker-in-Docker feature
+  - [ ] Six essential VS Code extensions
+- [ ] Rebuilt the Codespace with new configuration
+- [ ] Verified Azure CLI is working (`az --version` succeeds)
+- [ ] Verified Docker is working (`docker --version` succeeds)
+- [ ] Confirmed all extensions are installed
+- [ ] Tested configuration by creating a fresh Codespace
+- [ ] Committed and pushed dev container configuration
 
 ## Key Concepts to Understand
 
-- **Infrastructure as Code for Dev Environments**: Development environments can be defined, versioned, and shared
-- **Reproducible Setups**: Every developer gets the same consistent environment
-- **Cloud-Native Development**: Development happens in the cloud, reducing local machine dependencies
-- **Onboarding Acceleration**: New team members can start coding immediately without setup time
+- **Configuration as Code**: Development environments defined in version-controlled files
+- **Dev Container Features**: Reusable packages for adding tools (Azure CLI, Docker, etc.)
+- **Reproducibility**: Every developer gets identical setup automatically
+- **Cloud-Native Development**: Full development environment in the cloud
+- **Container-Based Isolation**: Each Codespace runs in its own container
+- **Instant Onboarding**: New team members productive in minutes, not days
+
+## Tips and Best Practices
+
+- **Resource Management**: Stop or delete Codespaces when not in use to conserve free tier hours
+- **Extension Selection**: Only include extensions the whole team needs in the dev container
+- **Base Image Choice**: Pick images that match your primary language/runtime
+- **Feature Documentation**: Azure CLI and Docker features are documented at [containers.dev/features](https://containers.dev/features)
+- **Testing Changes**: Always test your dev container configuration in a fresh Codespace
+
+## Troubleshooting
+
+**Codespace won't start?**
+- Check your `devcontainer.json` syntax (valid JSON required)
+- Verify feature names and versions are correct
+- Look at the creation logs for specific errors
+
+**Azure CLI not found after rebuild?**
+- Ensure the feature is in the `"features"` object
+- Check spelling and format of the feature reference
+- Try a full rebuild rather than just reopening
+
+**Extensions not installing?**
+- Verify extension IDs are correct (find them in VS Code Marketplace)
+- Check they're under `customizations.vscode.extensions`
+- Some extensions require specific base images
 
 ## Additional Resources
 
-- [GitHub Codespaces documentation](https://docs.github.com/en/codespaces)
-- [Dev containers specification](https://containers.dev/)
-- [Codespaces configuration reference](https://docs.github.com/en/codespaces/setting-up-your-project-for-codespaces/adding-a-dev-container-configuration)
-- [VS Code in Codespaces](https://code.visualstudio.com/docs/remote/codespaces)
+- [GitHub Codespaces Documentation](https://docs.github.com/en/codespaces)
+- [Dev Containers Specification](https://containers.dev/)
+- [Available Dev Container Features](https://containers.dev/features)
+- [Azure CLI in Codespaces](https://docs.github.com/en/codespaces/developing-in-codespaces/using-github-codespaces-with-azure-cli)
+- [VS Code Extension Marketplace](https://marketplace.visualstudio.com/vscode)
+
+## Next Steps
+
+After completing this challenge, you'll have a fully configured cloud development environment for the PetPal application. In future challenges, you'll use this environment to implement features, test APIs, and deploy to Azure - all without needing to install anything locally!
 
 ## Solution
 
