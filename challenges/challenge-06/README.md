@@ -13,36 +13,64 @@ If you already have an `accessory-service` directory in your fork (e.g. from pee
 Before designing a new service, spin up the current system so you understand integration points.
 
 ### 0.1 Cosmos DB Emulator (Docker)
-```
+```sh
 docker pull mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+
+
 docker run \
    --name cosmos-emulator \
    --detach \
    --publish 8081:8081 \
+   --publish 1234:1234 \
    --publish 10250-10255:10250-10255 \
    mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
 ```
-Access the emulator endpoint over HTTPS (self‑signed cert). For local dev you may need to trust the cert (Codespaces often already handles this for outbound fetch from backend containers).
 
-### 0.2 Pull UI Container
+> **⚠️ Important Note about SSL/TLS**: The Linux Cosmos DB emulator works more reliably with HTTP connections. The backend services are pre-configured to use `http://localhost:8081/` in their `.env` files. If you encounter SSL certificate errors, verify that `COSMOS_ENDPOINT=http://localhost:8081/` (not https) in the `.env` files for each service. See `/backend/COSMOS_EMULATOR_FIX.md` for details.
+
+**Verify the emulator is running:**
+If using GitHub Codespaces, access the forwarded port 1234 in your browser:
 ```
-docker pull ghcr.io/michalmar/petpal-ui:latest
+https://<your-codespace-name>-1234.app.github.dev/
+```
+Replace `<your-codespace-name>` with your actual Codespace name (e.g., `ideal-space-eureka-w5vxp9xrwphp9vw`). You should see the Cosmos DB Emulator explorer interface confirming the emulator is ready.
+
+You should see the Cosmos DB Emulator explorer interface confirming the emulator is ready (no collections no data yet):
+![Cosmos DB Emulator Explorer](../../solutions/challenge-06/docs/cosmosdb-emulator.png)
+
+
+### 0.2 Start Backend Microservices
+From repository root, ideally run in separate Terminals (icon of terminal with `+` in VS Code) icon looks like this:
+
+> Important: make the auto-forwarded ports Public:
+> ![public port](../../solutions/challenge-06/docs/ports-public.png)
+
+Start the Pet Service backend:
+```sh
+cd backend/pet-service && ./start.sh
 ```
 
-### 0.3 Start Backend Microservices
-From repository root:
+
+Start the Activity service backend:
+```sh
+cd backend/activity-service && ./start.sh
 ```
-cd backend/pet-service && ./start.sh &
-cd ../activity-service && ./start.sh &
-cd ../accessory-service && ./start.sh   # (Skip or stop this one if you plan to implement it from scratch; otherwise observe behavior.)
-```
+
 Ports (example):
 * pet-service: 8010
 * activity-service: 8020
-* accessory-service: 8030 (your new service will target this port)
+
 
 ### 0.4 Run UI (adjust backend URLs if using Codespaces)
-```
+Once the backend services are running, you can start the frontend (already prepared as docker image).
+
+> Important: Replace the URLs for the backend services with generated URL from GH Codespaces:
+> ![ports](../../solutions/challenge-06/docs/codespaces-ports.png)
+
+
+```sh
+docker pull ghcr.io/michalmar/petpal-ui:latest
+
 docker run -d \
    -p 3000:80 \
    -e VITE_API_PETS_URL=<pets service public URL> \
@@ -51,7 +79,20 @@ docker run -d \
    -e VITE_API_GITHUB_TOKEN=$GITHUB_TOKEN \
    --name petpal-ui \
    ghcr.io/michalmar/petpal-ui:latest
+
+docker run -d \
+   -p 3000:80 \
+   -e VITE_API_PETS_URL=https://super-dollop-g46v49xq4xpf9xq5-8010.app.github.dev \
+   -e VITE_API_ACTIVITIES_URL=https://super-dollop-g46v49xq4xpf9xq5-8020.app.github.dev \
+   -e VITE_API_ACCESSORIES_URL=https://super-dollop-g46v49xq4xpf9xq5-8030.app.github.dev \
+   -e VITE_API_GITHUB_TOKEN=$GITHUB_TOKEN \
+   --name petpal-ui \
+   ghcr.io/michalmar/petpal-ui:latest
 ```
+
+
+
+
 Open the forwarded port (3000). Confirm existing pets and activities load. Accessories will show empty or error until your service is implemented.
 
 ---
