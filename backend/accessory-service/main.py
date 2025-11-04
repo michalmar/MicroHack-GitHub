@@ -298,7 +298,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8002,  # Different port from Pet and Activity Services
+        port=8030,  # Different port from Pet and Activity Services
         reload=settings.debug,
         log_level="info"
     )
