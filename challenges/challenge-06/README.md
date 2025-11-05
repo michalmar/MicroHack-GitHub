@@ -84,14 +84,20 @@ docker run -d \
 
 Open the forwarded port (3000). An you should see something similar to:
 
+> Note: for the first time it also creates and do initial load of data to the Cosmos DB, so it might take few seconds to load.
 
-
-### 0.4 Load seed data to CosmosDB
-
-
-
+![app UI](../../solutions/challenge-06/docs/app-full.png)
 
 Confirm existing pets and activities load. Accessories will show empty or error until your service is implemented.
+
+### 0.4 Challenge check
+
+The implemented frontend should show existing pets and activities. But accessories will be empty as the service is not implemented yet, in fact you can see Backend Error in the browser console:
+![app UI error](../../solutions/challenge-06/docs/app-acc-err.png)
+
+This is intentional as the accessory-service is not implemented yet. You are now ready to design and implement it in the next steps.
+
+
 
 ---
 ## 1. Challenge Focus
