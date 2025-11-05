@@ -17,33 +17,26 @@ GitHub Spark lets you describe an app in natural language and quickly generate a
 ### When to Use Spark Here
 For PetPal you need a fast, low‑friction prototype that shows UI integration points for three microservices (Pets, Activities, Accessories). Spark accelerates scaffolding so you can focus on domain modeling, UX, and collaboration patterns rather than initial boilerplate.
 
-## 2. PetPal Context Recap
-PetPal is a playful microservices demo app for managing virtual pets:
-1. Pet Service – already implemented (CRUD, persistence).
-2. Activity Service – tracks interactions/activities with pets.
-3. Accessory Service – planned CRUD service (teams will implement later).
+## 2. PetPal Web App - Context
+PetPal is a playful microservices‑based application that helps users manage their pets, track activities, and explore accessories. The app consists of two core microservices:
+1. **Pet Service**: Manages pet profiles, including details like name, age, breed, and health records.
+2. **Activity Service**: Tracks pet activities such as walks, feeding times, and vet visits.
 
-Your goal in this challenge: Produce a front‑end prototype (not production) that visually and structurally anticipates integrating all three services.
+**Your goal** in this challenge: Produce a front‑end prototype (not production) that visually and structurally anticipates integrating backend services.
 
 ## 3. Challenge Objectives
 Create (in GitHub Spark) an initial PetPal UI concept that:
 1. Create a simple frontend-only web application with to our Pet Pal website.
 2. Provides navigation affordances/placeholders for: Pets, Activities, Accessories.
-3. Includes a view layout all pets (cards/list) with possibility of CRUD operations.
-4. Anticipates asynchronous data loading (loading states / empty states).
-5. Applies the specified brand & vibe guidelines (below).
-6. Experiment with design, dark mode, and playful elements (subtle animations, emojis).
+3. Applies the specified brand & vibe guidelines (below).
+4. Add support for dark mode.
 
 You do NOT need real API calls yet—stub data or mock functions are fine.
 
 ## 4. Acceptance Criteria
 To consider the challenge complete:
 - A Spark project (link or exported repo) exists with the above sections scaffolded.
-- Visual design matches palette & tone (cards, subtle shadows, rounded corners).
 - Dark mode toggle works OR a note is left describing how it will be added.
-- Components are logically grouped; no giant single file.
-- Clear placeholder comments where microservice data will be injected.
-- README in the prototype includes: data flow diagram (can be textual), component list, integration plan for each service.
 - No full Accessory Service logic—only placeholder UI & mock entries.
 
 
