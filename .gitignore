@@ -291,3 +291,4 @@ tmp/
 workshop-config.json
 participant-credentials.json
 *.backup
+.azure
