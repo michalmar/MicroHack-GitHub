@@ -2,23 +2,26 @@
     "name": "MicroHack-GitHub",
     "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    "postCreateCommand": "az version",
-    "forwardPorts": [3000, 8010, 8020, 8030, 8081],
+    "postCreateCommand": "az version && /bin/bash ./.devcontainer/setup_ports.sh",
+    "forwardPorts": [
+        3000,
+        8010,
+        8020,
+        8030,
+        8081
+    ],
     "portsAttributes": {
         "3000": {
             "label": "frontend"
         },
         "8010": {
-            "label": "backend-pets",
-            "visible": "public"
+            "label": "backend-pets"
         },
         "8020": {
-            "label": "backend-activities",
-            "visible": "public"
+            "label": "backend-activities"
         },
         "8030": {
-            "label": "backend-accessories",
-            "visible": "public"
+            "label": "backend-accessories"
         },
         "8081": {
             "label": "cosmosdb-emulator"
@@ -29,7 +32,8 @@
         "ghcr.io/devcontainers/features/docker-in-docker:2": {},
         "ghcr.io/devcontainers/features/node:1": {
             "version": "lts"
-        }
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {}
     },
     "customizations": {
         "vscode": {
