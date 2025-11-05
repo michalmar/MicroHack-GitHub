@@ -30,9 +30,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info("Starting Pet Service API")
     logger.info("CosmosDB connection will be established when first needed")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Pet Service API")
 
@@ -113,17 +113,21 @@ async def health_check(db: CosmosDBService = Depends(get_db)):
 
 
 @app.get("/api/pets", response_model=List[Pet], tags=["Pets"])
-def get_pets(
-    search: Optional[str] = Query(None, description="Search term for name or notes"),
-    species: Optional[str] = Query(None, description="Filter by species (dog, cat, bird, other)"),
-    status: Optional[str] = Query(None, description="Filter by status (reserved for future use)"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of results"),
+async def get_pets(
+    search: Optional[str] = Query(
+        None, description="Search term for name or notes"),
+    species: Optional[str] = Query(
+        None, description="Filter by species (dog, cat, bird, other)"),
+    status: Optional[str] = Query(
+        None, description="Filter by status (reserved for future use)"),
+    limit: int = Query(100, ge=1, le=1000,
+                       description="Maximum number of results"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     db: CosmosDBService = Depends(get_db)
 ):
     """
     Get pets with optional filtering and pagination
-    
+
     - **search**: Search in pet names and notes
     - **species**: Filter by pet species (dog, cat, bird, other)
     - **status**: Reserved for future use
@@ -137,7 +141,7 @@ def get_pets(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid species. Must be one of: dog, cat, bird, other"
             )
-        
+
         # Create search filters
         filters = PetSearchFilters(
             search=search,
@@ -146,13 +150,15 @@ def get_pets(
             limit=limit,
             offset=offset
         )
-        
+
+        logger.info(f"Searching pets with filters: {filters.model_dump()}")
         # Search pets
-        pets = db.search_pets(filters)
-        
-        logger.info(f"Retrieved {len(pets)} pets with filters: {filters.model_dump()}")
+        pets = await db.search_pets(filters)
+
+        logger.info(
+            f"Retrieved {len(pets)} pets with filters: {filters.model_dump()}")
         return pets
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -170,7 +176,7 @@ def create_pet(
 ):
     """
     Create a new pet
-    
+
     - **name**: Pet name (required)
     - **species**: Pet species - dog, cat, bird, or other (required)
     - **ageYears**: Pet age in years (0-50)
@@ -184,7 +190,7 @@ def create_pet(
         pet = db.create_pet(pet_data)
         logger.info(f"Created new pet: {pet.id}")
         return pet
-        
+
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,7 +211,7 @@ def get_pet(
 ):
     """
     Get a specific pet by ID
-    
+
     - **pet_id**: Unique pet identifier
     """
     try:
@@ -215,9 +221,9 @@ def get_pet(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Pet with ID {pet_id} not found"
             )
-        
+
         return pet
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -236,7 +242,7 @@ def update_pet(
 ):
     """
     Update a pet by ID (partial update)
-    
+
     - **pet_id**: Unique pet identifier
     - **Update fields**: Any combination of pet fields to update
     """
@@ -247,10 +253,10 @@ def update_pet(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Pet with ID {pet_id} not found"
             )
-        
+
         logger.info(f"Updated pet: {pet_id}")
         return pet
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -268,7 +274,7 @@ def delete_pet(
 ):
     """
     Delete a pet by ID
-    
+
     - **pet_id**: Unique pet identifier
     """
     try:
@@ -278,10 +284,10 @@ def delete_pet(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Pet with ID {pet_id} not found"
             )
-        
+
         logger.info(f"Deleted pet: {pet_id}")
         return None
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -294,7 +300,7 @@ def delete_pet(
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
