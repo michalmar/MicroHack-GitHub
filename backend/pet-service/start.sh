@@ -112,9 +112,9 @@ fi
 
 # Start the service
 echo "🚀 Starting Pet Service API..."
-echo "📡 Server will be available at: http://localhost:8000"
-echo "📚 API documentation: http://localhost:8000/docs"
-echo "🔍 Health check: http://localhost:8000/health"
+echo "📡 Server will be available at: http://localhost:8010"
+echo "📚 API documentation: http://localhost:8010/docs"
+echo "🔍 Health check: http://localhost:8010/health"
 echo ""
 echo "Press Ctrl+C to stop the service"
 echo ""

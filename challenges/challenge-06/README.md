@@ -60,10 +60,10 @@ Ports (example):
 * activity-service: 8020
 
 
-### 0.4 Run UI (adjust backend URLs if using Codespaces)
+### 0.3 Run UI (adjust backend URLs if using Codespaces)
 Once the backend services are running, you can start the frontend (already prepared as docker image).
 
-> Important: Replace the URLs for the backend services with generated URL from GH Codespaces:
+> Important: The URLs for the backend services will be automatically generated using the CODESPACE_NAME environment variable:
 > ![ports](../../solutions/challenge-06/docs/codespaces-ports.png)
 
 
@@ -72,9 +72,9 @@ docker pull ghcr.io/michalmar/petpal-ui:latest
 
 docker run -d \
    -p 3000:80 \
-   -e VITE_API_PETS_URL=<pets service public URL> \
-   -e VITE_API_ACTIVITIES_URL=<activities service public URL> \
-   -e VITE_API_ACCESSORIES_URL=<accessories service public URL or placeholder> \
+   -e VITE_API_PETS_URL=https://${CODESPACE_NAME}-8010.app.github.dev \
+   -e VITE_API_ACTIVITIES_URL=https://${CODESPACE_NAME}-8020.app.github.dev \
+   -e VITE_API_ACCESSORIES_URL=https://${CODESPACE_NAME}-8030.app.github.dev \
    -e VITE_API_GITHUB_TOKEN=$GITHUB_TOKEN \
    --name petpal-ui \
    ghcr.io/michalmar/petpal-ui:latest
@@ -82,7 +82,16 @@ docker run -d \
 ```
 
 
-Open the forwarded port (3000). Confirm existing pets and activities load. Accessories will show empty or error until your service is implemented.
+Open the forwarded port (3000). An you should see something similar to:
+
+
+
+### 0.4 Load seed data to CosmosDB
+
+
+
+
+Confirm existing pets and activities load. Accessories will show empty or error until your service is implemented.
 
 ---
 ## 1. Challenge Focus
