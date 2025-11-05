@@ -45,7 +45,8 @@ class AccessoryCosmosService:
 
     def _build_cosmos_client_options(self) -> Dict[str, Any]:
         """Build CosmosClient configuration for consistent usage across services."""
-        disable_ssl_verify = os.getenv("COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        disable_ssl_verify = os.getenv(
+            "COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
         options: Dict[str, Any] = {
             "url": self.cosmos_endpoint,
             "credential": self.cosmos_key,
@@ -66,7 +67,8 @@ class AccessoryCosmosService:
             cosmos_client_options = self._build_cosmos_client_options()
             endpoint = cosmos_client_options["url"]
             if endpoint.startswith("http://"):
-                logger.warning("cosmos_endpoint uses http:// – prefer https:// for production parity.")
+                logger.warning(
+                    "cosmos_endpoint uses http:// – prefer https:// for production parity.")
             self.client = CosmosClient(**cosmos_client_options)
 
         if self.database is None:
@@ -75,7 +77,8 @@ class AccessoryCosmosService:
 
         if self.container is None:
             logger.info(f"Getting container: {self.container_name}")
-            self.container = self.database.get_container_client(self.container_name)
+            self.container = self.database.get_container_client(
+                self.container_name)
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check and auto-create database/container if needed."""
@@ -96,7 +99,8 @@ class AccessoryCosmosService:
                 if "does not exist" in error_message or "notfound" in error_message or (
                     hasattr(e, "status_code") and e.status_code in [404, 500]
                 ):
-                    logger.info("Database or container not found. Creating and seeding with sample data...")
+                    logger.info(
+                        "Database or container not found. Creating and seeding with sample data...")
                     result = await self._create_database_and_seed()
                     if result["status"] == "healthy":
                         return {
@@ -115,7 +119,8 @@ class AccessoryCosmosService:
         """Create database, container, and seed with sample accessory data."""
         try:
             logger.info(f"Creating database: {self.database_name}")
-            database = self.client.create_database_if_not_exists(id=self.database_name)
+            database = self.client.create_database_if_not_exists(
+                id=self.database_name)
 
             logger.info(f"Creating container: {self.container_name}")
             database.create_container_if_not_exists(
@@ -125,7 +130,8 @@ class AccessoryCosmosService:
             )
 
             self.database = self.client.get_database_client(self.database_name)
-            self.container = self.database.get_container_client(self.container_name)
+            self.container = self.database.get_container_client(
+                self.container_name)
 
             logger.info("Seeding container with sample accessory data")
             sample_accessories = [
@@ -158,9 +164,11 @@ class AccessoryCosmosService:
             for accessory_data in sample_accessories:
                 try:
                     self.container.create_item(body=accessory_data)
-                    logger.info(f"Seeded accessory: {accessory_data['name']} ({accessory_data['id']})")
+                    logger.info(
+                        f"Seeded accessory: {accessory_data['name']} ({accessory_data['id']})")
                 except cosmos_exceptions.CosmosResourceExistsError:
-                    logger.info(f"Accessory {accessory_data['name']} ({accessory_data['id']}) already exists, skipping")
+                    logger.info(
+                        f"Accessory {accessory_data['name']} ({accessory_data['id']}) already exists, skipping")
 
             logger.info("Database setup and seeding completed successfully")
             return {"status": "healthy", "message": "Database and container created successfully with sample data"}
@@ -187,7 +195,8 @@ class AccessoryCosmosService:
         except cosmos_exceptions.CosmosResourceExistsError:
             accessory_id = accessory_dict["id"]
             logger.error(f"Accessory with ID {accessory_id} already exists")
-            raise ValueError(f"Accessory with ID {accessory_id} already exists")
+            raise ValueError(
+                f"Accessory with ID {accessory_id} already exists")
         except cosmos_exceptions.CosmosHttpResponseError as e:
             logger.error(f"CosmosDB HTTP error creating accessory: {e}")
             raise
@@ -199,17 +208,20 @@ class AccessoryCosmosService:
         """Get an accessory by ID."""
         try:
             self._ensure_initialized()
-            response = self.container.read_item(item=accessory_id, partition_key=accessory_id)
+            response = self.container.read_item(
+                item=accessory_id, partition_key=accessory_id)
             logger.info(f"Retrieved accessory: {accessory_id}")
             return Accessory(**response)
         except cosmos_exceptions.CosmosResourceNotFoundError:
             logger.info(f"Accessory not found: {accessory_id}")
             return None
         except cosmos_exceptions.CosmosHttpResponseError as e:
-            logger.error(f"CosmosDB HTTP error getting accessory {accessory_id}: {e}")
+            logger.error(
+                f"CosmosDB HTTP error getting accessory {accessory_id}: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error getting accessory {accessory_id}: {e}")
+            logger.error(
+                f"Unexpected error getting accessory {accessory_id}: {e}")
             raise
 
     def update_accessory(self, accessory_id: str, update_data: AccessoryUpdate) -> Optional[Accessory]:
@@ -228,7 +240,8 @@ class AccessoryCosmosService:
             accessory_dict.update(update_dict)
             accessory_dict["updatedAt"] = datetime.utcnow().isoformat()
 
-            response = self.container.replace_item(item=accessory_id, body=accessory_dict)
+            response = self.container.replace_item(
+                item=accessory_id, body=accessory_dict)
             logger.info(f"Updated accessory: {accessory_id}")
 
             return Accessory(**response)
@@ -236,30 +249,35 @@ class AccessoryCosmosService:
             logger.info(f"Accessory not found for update: {accessory_id}")
             return None
         except cosmos_exceptions.CosmosHttpResponseError as e:
-            logger.error(f"CosmosDB HTTP error updating accessory {accessory_id}: {e}")
+            logger.error(
+                f"CosmosDB HTTP error updating accessory {accessory_id}: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error updating accessory {accessory_id}: {e}")
+            logger.error(
+                f"Unexpected error updating accessory {accessory_id}: {e}")
             raise
 
     def delete_accessory(self, accessory_id: str) -> bool:
         """Delete an accessory by ID."""
         try:
             self._ensure_initialized()
-            self.container.delete_item(item=accessory_id, partition_key=accessory_id)
+            self.container.delete_item(
+                item=accessory_id, partition_key=accessory_id)
             logger.info(f"Deleted accessory: {accessory_id}")
             return True
         except cosmos_exceptions.CosmosResourceNotFoundError:
             logger.info(f"Accessory not found for deletion: {accessory_id}")
             return False
         except cosmos_exceptions.CosmosHttpResponseError as e:
-            logger.error(f"CosmosDB HTTP error deleting accessory {accessory_id}: {e}")
+            logger.error(
+                f"CosmosDB HTTP error deleting accessory {accessory_id}: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error deleting accessory {accessory_id}: {e}")
+            logger.error(
+                f"Unexpected error deleting accessory {accessory_id}: {e}")
             raise
 
-    def search_accessories(self, filters: AccessorySearchFilters) -> List[Accessory]:
+    async def search_accessories(self, filters: AccessorySearchFilters) -> List[Accessory]:
         """Search accessories with filtering support."""
         try:
             self._ensure_initialized()
@@ -269,7 +287,8 @@ class AccessoryCosmosService:
             conditions: List[str] = []
 
             if filters.search:
-                conditions.append("(CONTAINS(c.name, @search) OR CONTAINS(c.description, @search))")
+                conditions.append(
+                    "(CONTAINS(c.name, @search) OR CONTAINS(c.description, @search))")
                 parameters.append({"name": "@search", "value": filters.search})
 
             if filters.type:
@@ -283,10 +302,12 @@ class AccessoryCosmosService:
                 query_parts.append("WHERE " + " AND ".join(conditions))
 
             query_parts.append("ORDER BY c.createdAt DESC")
-            query_parts.append(f"OFFSET {filters.offset} LIMIT {filters.limit}")
+            query_parts.append(
+                f"OFFSET {filters.offset} LIMIT {filters.limit}")
 
             query = " ".join(query_parts)
-            logger.debug(f"Executing query: {query} with parameters: {parameters}")
+            logger.debug(
+                f"Executing query: {query} with parameters: {parameters}")
 
             items = list(
                 self.container.query_items(
@@ -307,17 +328,28 @@ class AccessoryCosmosService:
 
             logger.info(f"Search returned {len(accessories)} accessories")
             return accessories
-        except cosmos_exceptions.CosmosHttpResponseError as e:
-            logger.error(f"CosmosDB HTTP error searching accessories: {e}")
-            raise
+        except (cosmos_exceptions.CosmosResourceNotFoundError, cosmos_exceptions.CosmosHttpResponseError) as e:
+            # Database or container doesn't exist - check if it's a "not found" type error
+            error_message = str(e).lower()
+            if "does not exist" in error_message or "notfound" in error_message or (
+                hasattr(e, "status_code") and e.status_code in [404, 500]
+            ):
+                logger.info(
+                    "Database or container not found during search. Creating and seeding with sample data...")
+                await self._create_database_and_seed()
+                # Retry the search after creating the database
+                return await self.search_accessories(filters)
+            else:
+                logger.error(f"CosmosDB HTTP error searching accessories: {e}")
+                raise
         except Exception as e:
             logger.error(f"Unexpected error searching accessories: {e}")
             raise
 
-    def get_all_accessories(self, limit: int = 100, offset: int = 0) -> List[Accessory]:
+    async def get_all_accessories(self, limit: int = 100, offset: int = 0) -> List[Accessory]:
         """Get all accessories with pagination support."""
         filters = AccessorySearchFilters(limit=limit, offset=offset)
-        return self.search_accessories(filters)
+        return await self.search_accessories(filters)
 
 
 def get_cosmos_service() -> AccessoryCosmosService:

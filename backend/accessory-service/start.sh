@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Pet Service Startup Script
-# This script helps set up and run the Pet Service API
+# Accessory Service Startup Script
+# This script helps set up and run the Accessory Service API
 
 set -e  # Exit on any error
 
-echo "🐾 Pet Service Setup and Startup Script"
+echo "🛍️  Accessory Service Setup and Startup Script"
 echo "======================================="
 
 # Function to check if a command exists
@@ -52,8 +52,8 @@ if [ ! -f ".env" ]; then
         echo "📝 Required variables:"
         echo "   - COSMOS_ENDPOINT: Your CosmosDB endpoint URL"
         echo "   - COSMOS_KEY: Your CosmosDB primary or secondary access key"
-        echo "   - COSMOS_DATABASE_NAME: Database name (default: petservice)"
-        echo "   - COSMOS_CONTAINER_NAME: Container name (default: pets)"
+        echo "   - COSMOS_DATABASE_NAME: Database name (default: accessoryservice)"
+        echo "   - COSMOS_CONTAINER_NAME: Container name (default: accessories)"
         echo ""
         echo "🔐 For local development with CosmosDB Emulator:"
         echo "   - COSMOS_ENDPOINT=https://localhost:8081/"
@@ -101,7 +101,7 @@ fi
 # Run tests (optional)
 if [ "$1" = "--test" ]; then
     echo "🧪 Running tests..."
-    python -m pytest test_main.py -v
+    python -m pytest test_*.py -v
     if [ $? -eq 0 ]; then
         echo "✅ All tests passed!"
     else
@@ -111,10 +111,10 @@ if [ "$1" = "--test" ]; then
 fi
 
 # Start the service
-echo "🚀 Starting Pet Service API..."
-echo "📡 Server will be available at: http://localhost:8010"
-echo "📚 API documentation: http://localhost:8010/docs"
-echo "🔍 Health check: http://localhost:8010/health"
+echo "🚀 Starting Accessory Service API..."
+echo "📡 Server will be available at: http://localhost:8030"
+echo "📚 API documentation: http://localhost:8030/docs"
+echo "🔍 Health check: http://localhost:8030/health"
 echo ""
 echo "Press Ctrl+C to stop the service"
 echo ""
