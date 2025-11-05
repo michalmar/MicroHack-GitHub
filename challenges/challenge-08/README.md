@@ -1,206 +1,310 @@
-# Challenge 08: Infrastructure as Code and Access Models
+# Challenge 08: Infrastructure as Code - Azure Deployment
 
 ## Overview
 
-Deploy to Azure environment (e.g., Container Apps) including identity and permissions for cloud services. Discussion of security principles and best practices.
+Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). This challenge focuses on provisioning the core infrastructure: Container Apps for backend services and frontend, and Cosmos DB for data storage.
 
 ## Learning Objectives
 
-- Implement Infrastructure as Code (IaC) for microservices deployment
-- Understand Azure identity and access management patterns
-- Learn security best practices for cloud deployments
-- Experience with automated infrastructure provisioning and management
+- Implement Infrastructure as Code (IaC) using Bicep
+- Deploy microservices to Azure Container Apps
+- Provision and configure Azure Cosmos DB
+- Understand basic Azure resource management and deployment
+- Experience with Azure Developer CLI (azd) for simplified deployments
 
 ## Prerequisites
 
 - Azure subscription with appropriate permissions
-- Completed Challenge 07 (Implementation and testing)
-- Basic understanding of Azure services
-- Familiarity with containerization and cloud deployment concepts
+- Completed Challenge 07 (backend services running locally)
+- Azure CLI installed and configured
+- Basic understanding of Azure services and containerization
+- Familiarity with Bicep or willingness to learn
 
 ## Tasks
 
 ### Task 1: Infrastructure Design and Planning
+
 1. **Architecture Review**:
-   - Design Azure architecture for your microservice
-   - Choose appropriate Azure services (Container Apps, AKS, App Service, etc.)
-   - Plan networking and security requirements
-   - Consider scaling and availability requirements
+   - Review the PetPal microservices architecture (3 backend services + 1 frontend)
+   - Identify Azure resources needed:
+     - Azure Container Apps Environment
+     - 4 Container Apps (pet-service, activity-service, accessory-service, frontend)
+     - Azure Cosmos DB (serverless)
+     - Log Analytics Workspace (for Container Apps requirement)
+   - Plan resource naming conventions and organization
 
-2. **Infrastructure as Code Setup**:
-   - Choose IaC tool (Bicep, Terraform, ARM templates)
-   - Set up IaC project structure and organization
-   - Plan modular and reusable infrastructure components
-   - Consider environment-specific configurations
+2. **Choose IaC Approach**:
+   - **Recommended**: Use Bicep for Azure-native IaC
+   - Alternative: Terraform or ARM templates
+   - Understand modular infrastructure design
+   - Plan for environment-specific configurations (dev, staging, prod)
 
-### Task 2: Identity and Access Management Design
-1. **Service Identity Strategy**:
-   - Design managed identity approach for services
-   - Plan service-to-service authentication
-   - Configure Azure AD application registrations if needed
-   - Implement least-privilege access principles
+### Task 2: Set Up Bicep Infrastructure
 
-2. **Resource Access Patterns**:
-   - Configure access to Azure databases and storage
-   - Set up access to messaging services
-   - Implement secrets management strategy
-   - Plan monitoring and logging access
+1. **Create Bicep Project Structure**:
+   - Create `infra/` directory in your project root
+   - Organize Bicep files by resource type:
+     - `main.bicep` - orchestration template
+     - `cosmos.bicep` - Cosmos DB configuration
+     - `container-app-environment.bicep` - Container Apps environment
+     - `container-app.*.bicep` - individual Container App modules
+   - Create `main.parameters.json` for parameter values
 
-### Task 3: Core Infrastructure Implementation
-1. **Container Infrastructure**:
-   - Use Copilot to generate Azure Container Apps configuration
-   - Set up Azure Container Registry
-   - Configure container image build and deployment
-   - Implement health checks and startup probes
+2. **Define Core Resources**:
+   - Use Copilot to generate Bicep templates:
+     ```
+     "Create a Bicep template for Azure Container Apps environment with Log Analytics"
+     
+     "Generate Bicep for Cosmos DB serverless with SQL API"
+     
+     "Create Bicep module for Container App with environment variables and ingress"
+     ```
 
-2. **Data Services**:
-   - Deploy and configure Azure SQL Database or Cosmos DB
-   - Set up connection string management with Key Vault
-   - Configure backup and disaster recovery
-   - Implement database access with managed identity
+### Task 3: Implement Container Infrastructure
 
-3. **Networking and Security**:
-   - Configure virtual networks and subnets
-   - Set up network security groups and application gateways
-   - Implement TLS/SSL termination
-   - Configure private endpoints if required
+1. **Container Apps Environment**:
+   - Define Container Apps managed environment
+   - Configure Log Analytics workspace integration
+   - Set up environment naming with unique suffixes
 
-### Task 4: Advanced Security Implementation
-1. **Zero Trust Architecture**:
-   - Implement network segmentation
-   - Configure conditional access policies
-   - Set up identity-based access controls
-   - Implement defense in depth strategies
+2. **Deploy Backend Services**:
+   - Create Container App configurations for:
+     - Pet Service (port 8010)
+     - Activity Service (port 8020)
+     - Accessory Service (port 8030)
+   - Configure environment variables for each service:
+     - `COSMOS_ENDPOINT`
+     - `COSMOS_KEY`
+     - `COSMOS_DATABASE_NAME`
+     - `COSMOS_CONTAINER_NAME`
+   - Enable external ingress for each service
+   - Configure resource allocation (CPU, memory)
 
-2. **Secrets and Configuration Management**:
-   - Use Azure Key Vault for secrets management
-   - Implement Azure App Configuration for settings
-   - Set up certificate management and rotation
-   - Configure secure environment variable handling
+3. **Deploy Frontend**:
+   - Create Container App for frontend (port 80)
+   - Configure environment variables:
+     - `VITE_API_PETS_URL`
+     - `VITE_API_ACTIVITIES_URL`
+     - `VITE_API_ACCESSORIES_URL`
+   - Enable external ingress with public access
 
-### Task 5: Monitoring and Observability Infrastructure
-1. **Logging and Monitoring Setup**:
-   - Deploy Azure Application Insights
-   - Configure Log Analytics workspace
-   - Set up Azure Monitor alerts and dashboards
-   - Implement distributed tracing infrastructure
+### Task 4: Implement Data Services
 
-2. **Security Monitoring**:
-   - Configure Azure Security Center recommendations
-   - Set up Azure Sentinel for security monitoring
-   - Implement audit logging and compliance reporting
-   - Configure vulnerability scanning and assessment
+1. **Azure Cosmos DB Setup**:
+   - Provision Cosmos DB account with serverless capability
+   - Configure SQL API
+   - Set up session consistency level
+   - Define database and container specifications
+   - Output connection strings and keys for Container Apps
 
-### Task 6: Deployment Automation
-1. **Infrastructure Deployment Pipeline**:
-   - Create automated infrastructure deployment scripts
-   - Implement infrastructure testing and validation
-   - Set up environment promotion pipelines
-   - Configure rollback and disaster recovery procedures
+2. **Database Configuration**:
+   - Plan database structure:
+     - Database: `petservice`, Container: `pets`
+     - Database: `activityservice`, Container: `activities`
+     - Database: `accessoryservice`, Container: `accessories`
+   - Configure partition keys appropriately
+   - Set up throughput settings (serverless mode)
 
-2. **Configuration Drift Management**:
-   - Implement infrastructure state monitoring
-   - Set up configuration drift detection
-   - Plan automated remediation strategies
-   - Configure compliance and governance policies
+### Task 5: Deployment and Testing
 
-### Task 7: Security Best Practices Implementation
-1. **Identity Security**:
-   - Implement multi-factor authentication requirements
-   - Configure privileged identity management
-   - Set up identity governance and access reviews
-   - Implement emergency access procedures
+1. **Deploy Infrastructure**:
+   - Validate Bicep templates:
+     ```bash
+     az deployment group validate \
+       --resource-group <rg-name> \
+       --template-file infra/main.bicep \
+       --parameters infra/main.parameters.json
+     ```
+   - Deploy to Azure:
+     ```bash
+     az deployment group create \
+       --resource-group <rg-name> \
+       --template-file infra/main.bicep \
+       --parameters infra/main.parameters.json
+     ```
+   - **Alternative**: Use Azure Developer CLI (azd):
+     ```bash
+     azd init
+     azd up
+     ```
 
-2. **Data Security**:
-   - Configure encryption at rest and in transit
-   - Implement data classification and protection
-   - Set up data loss prevention policies
-   - Configure backup encryption and key management
+2. **Verify Deployment**:
+   - Check all Container Apps are running
+   - Test backend service endpoints
+   - Verify frontend loads and connects to backends
+   - Confirm Cosmos DB databases and containers created
+   - Review deployment outputs (URLs, connection strings)
 
-3. **Application Security**:
-   - Implement Web Application Firewall rules
-   - Configure API rate limiting and throttling
-   - Set up application security scanning
-   - Implement secure coding practices validation
+3. **Test the Application**:
+   - Access frontend URL from deployment outputs
+   - Test CRUD operations for pets, activities, and accessories
+   - Verify data persists in Cosmos DB
+   - Check Container Apps logs for errors
+
+### Task 6: Infrastructure Documentation
+
+1. **Document Your Infrastructure**:
+   - Create README in `infra/` directory
+   - Document deployment steps
+   - List required parameters and their purposes
+   - Include troubleshooting guide
+   - Document resource naming conventions
+
+2. **Create Deployment Scripts**:
+   - Create `deploy.sh` (or `deploy.ps1`) for automated deployment
+   - Add validation and error handling
+   - Include deployment output display
+   - Add cleanup script for resource deletion
 
 ## Success Criteria
 
-- [ ] Successfully deployed microservice to Azure using IaC
-- [ ] Implemented proper identity and access management
-- [ ] Applied security best practices throughout the deployment
-- [ ] Configured monitoring and observability infrastructure
-- [ ] Created automated deployment and management processes
-- [ ] Validated security controls and compliance requirements
-- [ ] Documented architecture and operational procedures
+- [ ] All Bicep templates created and organized in `infra/` directory
+- [ ] Successfully deployed all 4 Container Apps to Azure
+- [ ] Cosmos DB provisioned and accessible by services
+- [ ] All services running and passing health checks
+- [ ] Frontend accessible and functioning correctly
+- [ ] Backend APIs responding to requests
+- [ ] Data persisting correctly in Cosmos DB
+- [ ] Infrastructure can be redeployed consistently
+- [ ] Deployment process documented
 
 ## Infrastructure as Code with Copilot
 
-### Bicep Template Generation
+### Getting Started with Bicep
+Use GitHub Copilot to generate Bicep templates:
+
 ```
-"Create a Bicep template for Azure Container Apps environment with managed identity"
+"Create main.bicep orchestration template for PetPal microservices"
 
-"Generate Azure SQL Database configuration with private endpoint"
+"Generate Bicep module for Azure Container App with parameters for image, environment variables, and ingress"
 
-"Create Key Vault setup with RBAC permissions for container apps"
-```
+"Create Bicep template for Cosmos DB serverless with output for connection string"
 
-### Terraform Configuration
-```
-"Generate Terraform configuration for Azure Container Registry with admin user disabled"
-
-"Create Terraform module for Azure networking with security groups"
-
-"Generate Azure Monitor and Application Insights setup in Terraform"
+"Generate parameters file for Bicep with location, environment name, and image tags"
 ```
 
-## Security Principles and Best Practices
+### Copilot Tips
+- Ask Copilot to explain Bicep syntax and best practices
+- Use Copilot to generate module parameters and outputs
+- Request Copilot to create deployment scripts
+- Ask for troubleshooting help with deployment errors
 
-### 1. Identity and Access Management
-- **Principle of Least Privilege**: Grant minimum necessary permissions
-- **Zero Trust**: Never trust, always verify
-- **Identity as Security Perimeter**: Use strong identity controls
-- **Regular Access Reviews**: Periodically review and update permissions
+## Azure Developer CLI (azd) - Recommended Approach
 
-### 2. Data Protection
-- **Defense in Depth**: Multiple layers of security controls
-- **Encryption Everywhere**: Encrypt data at rest and in transit
-- **Data Classification**: Classify and protect sensitive data appropriately
-- **Backup Security**: Secure and test backup and recovery procedures
+### Why Use azd?
+- Simplified infrastructure provisioning and deployment
+- Built-in support for Bicep templates
+- Streamlined environment management
+- Integrated CI/CD workflows
+- Consistent deployment experience
 
-### 3. Network Security
-- **Network Segmentation**: Isolate services and limit lateral movement
-- **Private Networking**: Use private endpoints and service endpoints
-- **Traffic Encryption**: Ensure all network traffic is encrypted
-- **Monitoring and Logging**: Log and monitor all network activity
+### Getting Started with azd
+```bash
+# Initialize azd project
+azd init
 
-### 4. Application Security
-- **Secure Development**: Implement secure coding practices
-- **Vulnerability Management**: Regular security scanning and patching
-- **Input Validation**: Validate and sanitize all inputs
-- **Error Handling**: Secure error handling and logging
+# Provision infrastructure and deploy
+azd up
 
-## Azure Security Services Integration
+# Deploy code changes only
+azd deploy
 
-### Core Security Services
-- **Azure Active Directory**: Identity and access management
-- **Azure Key Vault**: Secrets and key management
-- **Azure Security Center**: Security posture management
-- **Azure Sentinel**: Security information and event management
+# Clean up all resources
+azd down
+```
 
-### Compliance and Governance
-- **Azure Policy**: Compliance and governance automation
-- **Azure Blueprints**: Repeatable environment deployment
-- **Azure Resource Manager**: Infrastructure lifecycle management
-- **Azure Cost Management**: Resource optimization and control
+### azd Project Structure
+```
+/
+├── infra/                  # Bicep templates
+│   ├── main.bicep
+│   ├── main.parameters.json
+│   └── modules/
+├── azure.yaml             # azd configuration
+└── .azure/                # azd environment files
+```
+
+## Resource Naming Conventions
+
+Use consistent naming patterns for better organization:
+- Resource Group: `rg-petpal-{env}`
+- Container Apps Environment: `petpal-{env}-env`
+- Container Apps: `petpal-{env}-{service-name}`
+- Cosmos DB: `cosmos-petpal-{env}-{uniqueid}`
+- Log Analytics: `logs-petpal-{env}`
+
+## Troubleshooting Common Issues
+
+### Deployment Failures
+- Check resource naming conflicts (use unique suffixes)
+- Verify subscription permissions
+- Review Bicep validation warnings
+- Check parameter values match expected types
+
+### Container Apps Not Starting
+- Verify container image exists and is accessible
+- Check environment variables are set correctly
+- Review Container Apps logs in Azure Portal
+- Verify Log Analytics workspace connection
+
+### Service Communication Issues
+- Confirm all services have external ingress enabled
+- Check environment variable URLs are correct
+- Verify network connectivity between services
+- Test endpoints individually before integration
+
+### Cosmos DB Connection Issues
+- Verify connection string format
+- Check Cosmos DB key is correctly passed
+- Confirm database and container names match
+- Review firewall settings (allow Azure services)
+
+## Cost Considerations
+
+**Estimated monthly costs for development environment:**
+- Container Apps (4 services): ~$30-60
+- Cosmos DB (serverless): ~$5-15 (depends on usage)
+- Log Analytics: ~$5 (5GB free tier)
+
+**Total estimated cost: $40-80/month**
+
+💡 **Tip**: Delete resources when not in use to minimize costs!
+
+## Optional Extensions (Not Required for Challenge Completion)
+
+The following topics are advanced features that can enhance your deployment but are **not required** to complete this challenge:
+
+### Security Enhancements
+- Implement managed identities for service authentication
+- Use Azure Key Vault for secrets management
+- Configure private endpoints for Cosmos DB
+- Set up network security groups and access restrictions
+- Implement Azure AD authentication
+
+### Monitoring and Observability
+- Configure Application Insights for distributed tracing
+- Set up Azure Monitor dashboards
+- Create alerts for service health and performance
+- Implement custom metrics and logging
+- Configure log aggregation and analysis
+
+### Deployment Automation
+- Create GitHub Actions workflows for CI/CD
+- Implement automated testing before deployment
+- Set up environment promotion pipelines
+- Configure blue-green or canary deployments
+- Implement rollback strategies
+
+These optional extensions will be covered in future challenges focused on production readiness, security hardening, and operational excellence.
 
 ## Additional Resources
 
-- [Azure Well-Architected Framework](https://docs.microsoft.com/en-us/azure/architecture/framework/)
-- [Azure Security Best Practices](https://docs.microsoft.com/en-us/azure/security/)
-- [Azure Infrastructure as Code](https://docs.microsoft.com/en-us/azure/azure-resource-manager/)
-- [Azure Identity and Access Management](https://docs.microsoft.com/en-us/azure/active-directory/)
-- [Azure Container Apps documentation](https://docs.microsoft.com/en-us/azure/container-apps/)
+- [Azure Container Apps Documentation](https://docs.microsoft.com/azure/container-apps/)
+- [Bicep Language Documentation](https://docs.microsoft.com/azure/azure-resource-manager/bicep/)
+- [Azure Developer CLI (azd)](https://docs.microsoft.com/azure/developer/azure-developer-cli/)
+- [Azure Cosmos DB Serverless](https://docs.microsoft.com/azure/cosmos-db/serverless)
+- [Container Apps Pricing](https://azure.microsoft.com/pricing/details/container-apps/)
 
 ## Solution
 
-[Solution Steps](/solutions/challenge-08/README.md)
+Need help? Check the [Solution Guide](/solutions/challenge-08/README.md) for detailed implementation steps and reference code.

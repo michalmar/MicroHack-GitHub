@@ -160,22 +160,63 @@ infra/
 # Install Azure CLI
 az version
 
+# Install Azure Developer CLI (azd)
+# Windows (winget)
+winget install microsoft.azd
+
+# Linux/macOS (curl)
+curl -fsSL https://aka.ms/install-azd.sh | bash
+
+# Verify installation
+azd version
+
 # Login to Azure
 az login
+azd auth login
 
-# Set subscription
+# Set subscription (if you have multiple)
 az account set --subscription <subscription-id>
-
-# Create resource group
-az group create --name petpal-rg --location eastus
 ```
 
-**Deploy Infrastructure:**
+**Deploy Infrastructure Using Azure Developer CLI (Recommended):**
+
+The Azure Developer CLI (azd) provides a streamlined experience for deploying Bicep infrastructure:
+
+```bash
+# Navigate to project root
+cd /workspaces/MicroHack-GitHub
+
+# Initialize azd environment (first time only)
+azd init
+
+# Provision infrastructure
+azd provision
+
+# Follow the prompts:
+# - Select subscription
+# - Enter environment name (e.g., dev)
+# - Select Azure location (e.g., eastus)
+```
+
+**What `azd provision` does:**
+1. Creates resource group automatically
+2. Validates Bicep templates
+3. Deploys all infrastructure resources
+4. Displays deployment outputs
+5. Saves environment configuration for reuse
+
+**Alternative: Manual Azure CLI Deployment**
+
+If you prefer to use Azure CLI directly:
+
 ```bash
 # Navigate to infra directory
 cd /workspaces/MicroHack-GitHub/infra
 
-# Validate deployment (optional)
+# Create resource group
+az group create --name petpal-rg --location eastus
+
+# Validate deployment (optional but recommended)
 az deployment group validate \
   --resource-group petpal-rg \
   --template-file main.bicep \
@@ -195,7 +236,18 @@ az deployment group show \
   --query properties.provisioningState
 ```
 
-**Retrieve Outputs:**
+**Retrieve Deployment Outputs:**
+
+Using azd:
+```bash
+# View environment configuration
+azd env get-values
+
+# Get specific outputs
+azd env get-value AZURE_CONTAINER_APPS_ENVIRONMENT_NAME
+```
+
+Using Azure CLI:
 ```bash
 # Get all outputs
 az deployment group show \
@@ -210,6 +262,38 @@ az deployment group show \
   --query properties.outputs.frontendUrl.value -o tsv
 ```
 
+**Update Infrastructure:**
+
+Using azd:
+```bash
+# Reprovision infrastructure with changes
+azd provision
+```
+
+Using Azure CLI:
+```bash
+# Redeploy with updated templates
+az deployment group create \
+  --resource-group petpal-rg \
+  --template-file main.bicep \
+  --parameters main.parameters.json \
+  --name petpal-infrastructure
+```
+
+**Clean Up Resources:**
+
+Using azd:
+```bash
+# Delete all resources
+azd down
+```
+
+Using Azure CLI:
+```bash
+# Delete resource group (removes all resources)
+az group delete --name petpal-rg --yes --no-wait
+```
+
 ## Key Learning Points
 
 ### 1. Infrastructure as Code Benefits
@@ -219,27 +303,34 @@ az deployment group show \
 - **Automation**: Integrate with CI/CD pipelines
 - **Testing**: Validate before deployment
 
-### 2. Azure Container Apps Best Practices
+### 2. Azure Developer CLI Advantages
+- **Simplified Workflow**: Single command to provision all resources
+- **Environment Management**: Easily manage multiple environments (dev, staging, prod)
+- **Integrated Experience**: Works seamlessly with Bicep templates
+- **CI/CD Ready**: Built-in support for GitHub Actions and Azure Pipelines
+- **Convention-Based**: Follows Azure best practices by default
+
+### 3. Azure Container Apps Best Practices
 - **Modular Templates**: Separate modules for different resource types
 - **Parameterization**: Make templates flexible with parameters
 - **Secrets Management**: Never hardcode sensitive values
 - **Resource Dependencies**: Use module outputs for dependencies
 - **Naming Conventions**: Use consistent, descriptive names
 
-### 3. Security Principles Applied
+### 4. Security Principles Applied
 - **Least Privilege**: Services only access required resources
 - **Secrets Protection**: Cosmos keys stored as secrets, not plain text
 - **HTTPS Enforcement**: All ingress configured for secure transport
 - **Network Isolation**: Services communicate within Container Apps environment
 - **Audit Ready**: All actions logged to Log Analytics
 
-### 4. Cosmos DB Serverless Advantages
+### 5. Cosmos DB Serverless Advantages
 - **Cost-Effective**: Pay only for operations consumed
 - **Auto-Scaling**: No throughput provisioning required
 - **Ideal for Dev/Test**: Perfect for variable workloads
 - **Migration Path**: Can upgrade to provisioned throughput later
 
-### 5. Scaling Configuration
+### 6. Scaling Configuration
 - **Horizontal Scaling**: Replicas increase based on load
 - **Metric-Based**: HTTP concurrency triggers scaling
 - **Min/Max Replicas**: Prevents over/under scaling
@@ -270,71 +361,122 @@ az deployment group show \
 ## Success Validation
 
 ### Verify Deployment
+
+Using azd:
 ```bash
 # Check deployment status
-az deployment group show \
-  --resource-group petpal-rg \
-  --name petpal-infrastructure \
-  --query properties.provisioningState
+azd env get-values
 
-# List Container Apps
+# View resource group
+azd env get-value AZURE_RESOURCE_GROUP
+
+# Monitor deployment (if still in progress)
+azd monitor
+```
+
+Final result should look like this:
+
+![azd success](../../solutions/challenge-08/docs/bicep-provision-success.png)
+
+Using Azure CLI:
+```bash
+# Get resource group from azd environment
+RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+
+# List all Container Apps
 az containerapp list \
-  --resource-group petpal-rg \
+  --resource-group $RESOURCE_GROUP \
   --output table
 
-# Check Cosmos DB
-az cosmosdb show \
-  --resource-group petpal-rg \
-  --name <cosmos-account-name>
+# Check Container Apps Environment
+az containerapp env list \
+  --resource-group $RESOURCE_GROUP \
+  --output table
+
+# Check Cosmos DB account
+az cosmosdb list \
+  --resource-group $RESOURCE_GROUP \
+  --output table
 ```
 
 ### Test Endpoints
+
+Using azd to get URLs:
 ```bash
-# Get frontend URL
+# Get all environment values (includes service URLs from outputs)
+azd env get-values
+
+# Get specific service URL
+FRONTEND_URL=$(azd env get-value FRONTEND_URL)
+
+# Test frontend (should return 200 or 301)
+curl -I $FRONTEND_URL
+```
+
+Using Azure CLI:
+```bash
+# Get resource group from azd environment
+RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+
+# Find the deployment name (azd creates with timestamp)
+DEPLOYMENT_NAME=$(az deployment group list \
+  --resource-group $RESOURCE_GROUP \
+  --query "[0].name" -o tsv)
+
+# Get frontend URL from deployment outputs
 FRONTEND_URL=$(az deployment group show \
-  --resource-group petpal-rg \
-  --name petpal-infrastructure \
+  --resource-group $RESOURCE_GROUP \
+  --name $DEPLOYMENT_NAME \
   --query properties.outputs.frontendUrl.value -o tsv)
 
-# Test frontend (should return 200)
+# Test frontend
 curl -I $FRONTEND_URL
 
-# Get pet service URL
+# Get and test pet service URL
 PET_URL=$(az deployment group show \
-  --resource-group petpal-rg \
-  --name petpal-infrastructure \
+  --resource-group $RESOURCE_GROUP \
+  --name $DEPLOYMENT_NAME \
   --query properties.outputs.petServiceUrl.value -o tsv)
 
-# Test pet service API
-curl $PET_URL/api/pets
+# Test pet service API (should return hello world page or JSON)
+curl $PET_URL
 ```
+
+Using browser:
+- Open the `FRONTEND_URL` in a web browser
+![ACA live](../../solutions/challenge-08/docs/aca-live.png)
 
 ### View Logs
-```bash
-# Stream Container App logs
-az containerapp logs show \
-  --name <container-app-name> \
-  --resource-group petpal-rg \
-  --follow
 
-# Query Log Analytics
-az monitor log-analytics query \
-  --workspace <workspace-id> \
-  --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h)"
+Using azd:
+```bash
+# Show logs for all services
+azd monitor --logs
+
+# View logs in Azure Portal
+azd monitor --overview
 ```
 
-## Cost Estimation
+Using Azure CLI:
+```bash
+# Get resource group from azd
+RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
 
-**Development Environment (Monthly):**
-- Container Apps Environment: ~$0 (consumption-based)
-- Container Apps (4 services, 1-2 replicas avg): ~$20-40
-- Cosmos DB Serverless (low usage): ~$5-15
-- Log Analytics (basic): ~$5 (first 5GB free)
-- **Total**: ~$30-60/month
+# Stream Container App logs (replace with actual app name)
+az containerapp logs show \
+  --name petpal-dev-pet-service \
+  --resource-group $RESOURCE_GROUP \
+  --follow
 
-**Production Environment (Monthly):**
-- Scaled replicas and higher usage: ~$200-500/month
-- Can be optimized based on actual usage patterns
+# Query Log Analytics workspace
+WORKSPACE_ID=$(az monitor log-analytics workspace list \
+  --resource-group $RESOURCE_GROUP \
+  --query "[0].customerId" -o tsv)
+
+az monitor log-analytics query \
+  --workspace $WORKSPACE_ID \
+  --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | take 50"
+```
 
 ## Next Steps
 
@@ -385,26 +527,61 @@ az monitor log-analytics query \
 - [Bicep Examples](https://github.com/Azure/bicep/tree/main/docs/examples)
 - [Azure Quickstart Templates](https://github.com/Azure/azure-quickstart-templates)
 
+### Azure Developer CLI
+- [Azure Developer CLI Documentation](https://docs.microsoft.com/azure/developer/azure-developer-cli/)
+- [azd Templates](https://azure.github.io/awesome-azd/)
+- [azd GitHub Repository](https://github.com/Azure/azure-dev)
+
 ## Troubleshooting Guide
+
+### Issue: azd provision fails with authentication error
+**Cause**: Not logged in or insufficient permissions
+**Solution**: Run `azd auth login` and verify subscription access
 
 ### Issue: Deployment Fails with "Name Already Exists"
 **Cause**: Resource names must be globally unique
-**Solution**: Modify `uniqueSuffix` parameter or `environmentName`
+**Solution**: 
+- Using azd: Choose a different environment name (`azd env new <new-name>`)
+- Using Azure CLI: Modify `uniqueSuffix` parameter or `environmentName`
 
 ### Issue: Container App Fails to Start
 **Cause**: Missing or incorrect environment variables
-**Solution**: Check Container App configuration and Cosmos DB connection
+**Solution**: 
+- Check deployment outputs: `azd env get-values`
+- Verify Container App configuration in Azure Portal
+- Review Container App logs: `azd monitor --logs`
 
 ### Issue: Cannot Access Services
-**Cause**: Ingress not properly configured
-**Solution**: Verify ingress settings and external access enabled
+**Cause**: Ingress not properly configured or deployment still in progress
+**Solution**: 
+- Wait for deployment to complete
+- Verify ingress settings in Container App configuration
+- Check if external access is enabled
+- Test with: `curl -I $(azd env get-value FRONTEND_URL)`
+
+### Issue: azd provision hangs or times out
+**Cause**: Network issues or quota limits
+**Solution**:
+- Check Azure subscription quotas
+- Verify network connectivity
+- Try different Azure region: `azd env set AZURE_LOCATION <new-region>`
 
 ### Issue: High Costs
 **Cause**: Too many replicas or high RU consumption
-**Solution**: Adjust scaling rules and optimize database queries
+**Solution**: 
+- Review scaling rules in Bicep templates
+- Optimize database queries
+- Monitor costs: `az consumption usage list`
+- Adjust min/max replicas in Container App configuration
+
+### Issue: Can't find deployment outputs
+**Cause**: Using azd vs Azure CLI commands
+**Solution**:
+- With azd: Use `azd env get-values` to see all outputs
+- With Azure CLI: Get resource group with `azd env get-value AZURE_RESOURCE_GROUP`
 
 ---
 
 **Solution Status**: ✅ Complete and Production-Ready
 
-This solution demonstrates enterprise-grade Infrastructure as Code practices with security, scalability, and maintainability in mind. It serves as a foundation for deploying microservices to Azure Container Apps and can be extended with additional features as requirements evolve.
+This solution demonstrates Infrastructure as Code best practices using Azure Developer CLI (azd) and Bicep templates. The azd approach provides a streamlined experience for deploying microservices to Azure Container Apps, with built-in support for multiple environments and CI/CD integration.
