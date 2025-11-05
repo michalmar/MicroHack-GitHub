@@ -24,3 +24,6 @@ docker run -d \
    -e VITE_API_GITHUB_TOKEN=$GITHUB_TOKEN \
    --name petpal-ui \
    ghcr.io/michalmar/petpal-ui:latest
+
+
+test
