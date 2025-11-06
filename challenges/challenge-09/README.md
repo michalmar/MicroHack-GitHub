@@ -62,95 +62,53 @@ Start simple, validate each phase works, then add complexity.
 
 ### Task 1: Setup and Single Service Deployment
 
-**Goal**: Deploy the Pet Service manually, then automate with GitHub Actions.
+**Goal**: Deploy the Pet Service automatically with GitHub Actions.
 
-#### 1.1 Verify Azure Container Registry (ACR)
-
-Your ACR should already exist from Challenge 08. Confirm its name, login server, and the GitHub managed identity's `AcrPush` assignment:
-
-```bash
-# Get resource group from your azd deployment (if applicable)
-RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
-
-# Identify the registry (only one expected for this challenge)
-ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
-ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
-
-echo "ACR_NAME=$ACR_NAME"
-echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
-
-# Confirm the managed identity has AcrPush permissions
-MANAGED_IDENTITY_OBJECT_ID=$(az deployment group show \
-  --resource-group $RESOURCE_GROUP \
-  --name $(az deployment group list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv) \
-  --query properties.outputs.githubManagedIdentityPrincipalId.value -o tsv)
-
-az role assignment list \
-  --assignee-object-id $MANAGED_IDENTITY_OBJECT_ID \
-  --scope $(az acr show --name $ACR_NAME --query id -o tsv) \
-  --query "[?roleDefinitionName=='AcrPush'].[roleDefinitionName,principalType]"
-
-# Capture the registry metadata for later steps
-echo "Remember to store ACR_NAME=$ACR_NAME and ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER as GitHub variables (Step 1.3)."
-```
-
-If the `AcrPush` assignment is missing, re-run the Challenge 08 infrastructure deployment or create the role assignment manually:
-
-```bash
-az role assignment create \
-  --assignee-object-id $MANAGED_IDENTITY_OBJECT_ID \
-  --assignee-principal-type ServicePrincipal \
-  --role "AcrPush" \
-  --scope $(az acr show --name $ACR_NAME --query id -o tsv)
-```
-
-#### 1.2 Build and Push Pet Service Image Manually
-
-The Pet Service already has a Dockerfile at `backend/pet-service/Dockerfile`. Let's build and push it:
-
-```bash
-# Navigate to pet service directory
-cd /workspaces/MicroHack-GitHub/backend/pet-service
-
-# Build the Docker image
-docker build -t petpal-pet-service:v1.0.0 .
-
-# Tag for ACR
-docker tag petpal-pet-service:v1.0.0 $ACR_LOGIN_SERVER/petpal-pet-service:v1.0.0
-
-# Login to ACR and push
-az acr login --name $ACR_NAME
-docker push $ACR_LOGIN_SERVER/petpal-pet-service:v1.0.0
-```
-
-```bash
+<!-- ```bash
 # Get Container App name from azd deployment
-PET_SERVICE_NAME=$(az containerapp list --resource-group 
+PET_SERVICE_NAME=$(az containerapp list --resource-group $RESOURCE_GROUP --query "[?contains(name, 'pet-service')].name" -o tsv)
 # Get the service URL
 PET_SERVICE_URL=$(az containerapp show --name $PET_SERVICE_NAME --resource-group $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv)
 echo "Pet Service URL: https://$PET_SERVICE_URL"
 
 # Test the service
 curl https://$PET_SERVICE_URL/health
-```
+``` -->
 
-#### 1.3 Configure GitHub Federated Identity
+#### 1.1 Configure GitHub Federated Identity
 
 Before creating workflows, grant GitHub Actions access to Azure using the managed identity provisioned in Challenge 08.
+
+Go to **Azure Portal → Managed Identities → [Your Identity] → Federated Identity Credentials**:
+
+![managed-identity-federated-credential](../../solutions/challenge-09/docs/mi-fed1.png)
+
+Setup the federated credential with your repo:
+
+
+
+![federated-credential-config](../../solutions/challenge-09/docs/mi-fed2.png)
+
+Get the **Client ID** from the identity overview page.
+![managed-identity-client-id](../../solutions/challenge-09/docs/SCR-20251106-phjf.png)
+
+
+```
+repo:<owner>/<repo>
+```
 
 1. **Retrieve identity metadata**
 
   ```bash
   REPO_FULL=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
-  AZURE_CLIENT_ID=$(az deployment group show \
-    --resource-group $RESOURCE_GROUP \
-    --name $(az deployment group list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv) \
-    --query properties.outputs.githubManagedIdentityClientId.value -o tsv)
+
+  AZURE_CLIENT_ID=$(az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, '-gha-mi-')].clientId" -o tsv)
 
   AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
   AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
+  echo "Repository: $REPO_FULL"
   echo "AZURE_CLIENT_ID=$AZURE_CLIENT_ID"
   echo "AZURE_TENANT_ID=$AZURE_TENANT_ID"
   echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
@@ -158,11 +116,18 @@ Before creating workflows, grant GitHub Actions access to Azure using the manage
 
 2. **Store GitHub secrets** (requires `repo` + `workflow` scopes on the GitHub CLI authentication):
 
+
   ```bash
   gh secret set AZURE_CLIENT_ID --body "$AZURE_CLIENT_ID" --repo "$REPO_FULL"
   gh secret set AZURE_TENANT_ID --body "$AZURE_TENANT_ID" --repo "$REPO_FULL"
   gh secret set AZURE_SUBSCRIPTION_ID --body "$AZURE_SUBSCRIPTION_ID" --repo "$REPO_FULL"
   ```
+> Note: if you see 403 errors, ensure your GitHub CLI authentication has the required scopes. example error message: `failed to fetch public key: HTTP 403: Resource not accessible by integration `
+> 
+> How to setup GitHub CLI authentication with proper scopes:
+> - Run `gh auth login --scopes "repo,workflow"`
+> - or refresh using `gh auth refresh --scopes "repo,workflow"`
+
 
 3. **Store GitHub variables** for common values:
 
@@ -209,7 +174,7 @@ env:
   COSMOS_CONTAINER_NAME: pets
   RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
   ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
 
 jobs:
   build-and-deploy:
@@ -277,11 +242,11 @@ jobs:
 - `AZURE_CLIENT_ID` - Managed identity client ID from Challenge 08 outputs
 - `AZURE_TENANT_ID` - Azure tenant ID
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
+- `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
 **Required GitHub Variables:**
 - `RESOURCE_GROUP` - Azure resource group name
 - `ACR_NAME` - Azure Container Registry name
-- `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
 Use the commands in **Step 1.3** to configure these secrets and variables. If you prefer the GitHub UI, add the same entries manually via **Settings → Secrets and variables → Actions**.
 

@@ -123,28 +123,31 @@ resource containerRegistryExisting 'Microsoft.ContainerRegistry/registries@2023-
   name: acrName
 }
 
-resource githubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31' = if (enableGitHubManagedIdentity) {
+resource githubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = if (enableGitHubManagedIdentity) {
   name: githubIdentityName
   location: location
 }
 
-resource githubFederatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-07-31' = [for subject in githubFederatedSubjects: if (enableGitHubManagedIdentity) {
-  name: guid(githubManagedIdentity.id, subject)
-  parent: githubManagedIdentity
-  properties: {
-    issuer: 'https://token.actions.githubusercontent.com'
-    subject: subject
-    audiences: [
-      'api://AzureADTokenExchange'
-    ]
-  }
-}]
+// resource githubFederatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for subject in githubFederatedSubjects: if (enableGitHubManagedIdentity) {
+//   name: guid(githubManagedIdentity.id, subject)
+//   parent: githubManagedIdentity
+//   properties: {
+//     issuer: 'https://token.actions.githubusercontent.com'
+//     subject: subject
+//     audiences: [
+//       'api://AzureADTokenExchange'
+//     ]
+//   }
+// }]
 
 resource githubIdentityContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableGitHubManagedIdentity) {
   name: guid(subscription().subscriptionId, githubManagedIdentity.id, 'contributor')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'b24988ac-6180-42a0-ab88-20f7382dd24c'
+    )
     principalId: githubManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
@@ -154,7 +157,10 @@ resource githubIdentityAcrPushRole 'Microsoft.Authorization/roleAssignments@2022
   name: guid(subscription().subscriptionId, githubManagedIdentity.id, 'acr-push')
   scope: containerRegistryExisting
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '8311e382-0749-4cb8-b61a-304f252e45ec'
+    )
     principalId: githubManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
@@ -169,6 +175,10 @@ output petServiceUrl string = petService.outputs.fqdn
 output activityServiceUrl string = activityService.outputs.fqdn
 output accessoryServiceUrl string = accessoryService.outputs.fqdn
 output frontendUrl string = frontend.outputs.fqdn
-output githubManagedIdentityClientId string = enableGitHubManagedIdentity ? githubManagedIdentity.properties.clientId : ''
-output githubManagedIdentityPrincipalId string = enableGitHubManagedIdentity ? githubManagedIdentity.properties.principalId : ''
+output githubManagedIdentityClientId string = enableGitHubManagedIdentity
+  ? githubManagedIdentity.properties.clientId
+  : ''
+output githubManagedIdentityPrincipalId string = enableGitHubManagedIdentity
+  ? githubManagedIdentity.properties.principalId
+  : ''
 output githubManagedIdentityResourceId string = enableGitHubManagedIdentity ? githubManagedIdentity.id : ''
