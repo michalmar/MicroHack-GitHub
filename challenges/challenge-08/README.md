@@ -141,7 +141,7 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Verify data persists in Cosmos DB
    - Check Container Apps logs for errors
 
-### Task 6: Infrastructure Documentation
+### Task 6: [OPTIONAL] Infrastructure Documentation
 
 1. **Document Your Infrastructure**:
    - Create README in `infra/` directory
@@ -160,13 +160,11 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 
 - [ ] All Bicep templates created and organized in `infra/` directory
 - [ ] Successfully deployed all 4 Container Apps to Azure
-- [ ] Cosmos DB provisioned and accessible by services
+- [ ] Cosmos DB provisioned
 - [ ] All services running and passing health checks
 - [ ] Frontend accessible and functioning correctly
 - [ ] Backend APIs responding to requests
-- [ ] Data persisting correctly in Cosmos DB
 - [ ] Infrastructure can be redeployed consistently
-- [ ] Deployment process documented
 
 ## Infrastructure as Code with Copilot
 
@@ -186,6 +184,8 @@ Use GitHub Copilot to generate Bicep templates:
 ### Copilot Tips
 - Ask Copilot to explain Bicep syntax and best practices
 - Use Copilot to generate module parameters and outputs
+- Guide Copilot by referencing any specific files (#)
+- Specify ACA images (hello world - mcr.microsoft.com/azuredocs/containerapps-helloworld:latest )
 - Request Copilot to create deployment scripts
 - Ask for troubleshooting help with deployment errors
 
