@@ -16,7 +16,11 @@ This MicroHack guides you through a comprehensive journey of modern development 
 
 ### 🏗️ Sample Application
 
-The workshop uses a **Pet Management System** built with microservices architecture:
+The workshop uses a **PetPal**, management system for pets, a web app built with microservices.
+
+PetPal is a playful microservices‑based application that helps users manage their pets, track activities, and explore accessories. 
+
+![PetPal web app](./solutions/challenge-06/docs/app-full.png)
 
 #### Backend Services
 - **🐾 Pet Service** (Port 8000) - Core pet management with CRUD operations
