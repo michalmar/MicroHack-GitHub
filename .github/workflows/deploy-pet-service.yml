@@ -19,7 +19,7 @@ env:
   COSMOS_CONTAINER_NAME: pets
   RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
   ACR_NAME: ${{ vars.ACR_NAME }}
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
 
 jobs:
   build-and-deploy:

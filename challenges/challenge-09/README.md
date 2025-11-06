@@ -97,21 +97,27 @@ Get the **Client ID** from the identity overview page.
 repo:<owner>/<repo>
 ```
 
-1. **Retrieve identity metadata**
+1. **Retrieve identity metadata and ACR details**
 
   ```bash
   REPO_FULL=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
-
+  # Get Azure identity information
   AZURE_CLIENT_ID=$(az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, '-gha-mi-')].clientId" -o tsv)
 
   AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
   AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 
+  # Get Azure Container Registry details
+  ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
+  ACR_LOGIN_SERVER=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].loginServer" -o tsv)
+
   echo "Repository: $REPO_FULL"
   echo "AZURE_CLIENT_ID=$AZURE_CLIENT_ID"
   echo "AZURE_TENANT_ID=$AZURE_TENANT_ID"
   echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
+  echo "ACR_NAME=$ACR_NAME"
+  echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
   ```
 
 2. **Store GitHub secrets** (requires `repo` + `workflow` scopes on the GitHub CLI authentication):
@@ -242,11 +248,11 @@ jobs:
 - `AZURE_CLIENT_ID` - Managed identity client ID from Challenge 08 outputs
 - `AZURE_TENANT_ID` - Azure tenant ID
 - `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
-- `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
 **Required GitHub Variables:**
 - `RESOURCE_GROUP` - Azure resource group name
 - `ACR_NAME` - Azure Container Registry name
+- `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
 Use the commands in **Step 1.3** to configure these secrets and variables. If you prefer the GitHub UI, add the same entries manually via **Settings → Secrets and variables → Actions**.
 
