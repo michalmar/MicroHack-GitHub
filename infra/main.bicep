@@ -25,12 +25,25 @@ param uniqueSuffix string = uniqueString(resourceGroup().id)
 @description('Frontend container image')
 param frontendImage string = 'ghcr.io/michalmar/petpal-ui:latest'
 
+@description('Toggle creation of the user-assigned managed identity for GitHub Actions federation')
+param enableGitHubManagedIdentity bool = true
+
+@description('Repository in owner/name format used when constructing GitHub federated credentials')
+@minLength(3)
+param githubRepository string = 'michalmar/MicroHack-GitHub'
+
+@description('Subjects for GitHub federated identity credentials (for example repo:owner/name:ref:refs/heads/main)')
+param githubFederatedSubjects array = [
+  'repo:${githubRepository}:ref:refs/heads/main'
+]
+
 // Variables
 var resourcePrefix = 'petpal-${environmentName}'
 var cosmosAccountName = '${resourcePrefix}-cosmos-${uniqueSuffix}'
 var containerAppEnvName = '${resourcePrefix}-env-${uniqueSuffix}'
 var logAnalyticsName = '${resourcePrefix}-logs-${uniqueSuffix}'
 var acrName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '') // ACR names cannot contain hyphens
+var githubIdentityName = '${resourcePrefix}-gha-mi-${uniqueSuffix}'
 
 // Module imports
 module containerRegistry 'acr.bicep' = {
@@ -39,7 +52,7 @@ module containerRegistry 'acr.bicep' = {
     name: acrName
     location: location
     sku: 'Basic'
-    adminUserEnabled: true
+    adminUserEnabled: false
   }
 }
 
@@ -106,11 +119,56 @@ module frontend 'container-app.frontend.bicep' = {
   }
 }
 
+resource containerRegistryExisting 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (enableGitHubManagedIdentity) {
+  name: acrName
+}
+
+resource githubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31' = if (enableGitHubManagedIdentity) {
+  name: githubIdentityName
+  location: location
+}
+
+resource githubFederatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-07-31' = [for subject in githubFederatedSubjects: if (enableGitHubManagedIdentity) {
+  name: guid(githubManagedIdentity.id, subject)
+  parent: githubManagedIdentity
+  properties: {
+    issuer: 'https://token.actions.githubusercontent.com'
+    subject: subject
+    audiences: [
+      'api://AzureADTokenExchange'
+    ]
+  }
+}]
+
+resource githubIdentityContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableGitHubManagedIdentity) {
+  name: guid(subscription().subscriptionId, githubManagedIdentity.id, 'contributor')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
+    principalId: githubManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource githubIdentityAcrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableGitHubManagedIdentity) {
+  name: guid(subscription().subscriptionId, githubManagedIdentity.id, 'acr-push')
+  scope: containerRegistryExisting
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
+    principalId: githubManagedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Outputs
 output cosmosEndpoint string = cosmosDb.outputs.endpoint
 output acrLoginServer string = containerRegistry.outputs.loginServer
 output acrName string = containerRegistry.outputs.name
+output acrResourceId string = containerRegistry.outputs.id
 output petServiceUrl string = petService.outputs.fqdn
 output activityServiceUrl string = activityService.outputs.fqdn
 output accessoryServiceUrl string = accessoryService.outputs.fqdn
 output frontendUrl string = frontend.outputs.fqdn
+output githubManagedIdentityClientId string = enableGitHubManagedIdentity ? githubManagedIdentity.properties.clientId : ''
+output githubManagedIdentityPrincipalId string = enableGitHubManagedIdentity ? githubManagedIdentity.properties.principalId : ''
+output githubManagedIdentityResourceId string = enableGitHubManagedIdentity ? githubManagedIdentity.id : ''
