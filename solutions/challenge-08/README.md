@@ -8,6 +8,7 @@ The solution implements a production-ready infrastructure that includes:
 
 - **Azure Container Apps Environment** with centralized logging
 - **Azure Cosmos DB** (serverless) for data persistence
+- **Azure Container Registry** (ACR) for Docker image storage
 - **Four Container Apps**: Pet Service, Activity Service, Accessory Service, and Frontend
 - **Security best practices**: Secrets management, HTTPS-only, managed identities ready
 - **Auto-scaling configuration** for all services
@@ -51,6 +52,7 @@ infra/
 ├── main.bicep                           # Main orchestration template
 ├── main.parameters.json                 # Default parameters
 ├── cosmos.bicep                         # Cosmos DB module
+├── acr.bicep                            # Azure Container Registry module
 ├── container-app-environment.bicep      # Container Apps environment
 ├── container-app.pet-service.bicep      # Pet service
 ├── container-app.activity-service.bicep # Activity service
@@ -79,7 +81,14 @@ infra/
    - Automatic scaling
    - Multi-API support (SQL API used)
 
-3. **Modular Architecture**:
+3. **Container Registry Choice**: Azure Container Registry (ACR) for:
+   - Native Azure integration with Container Apps
+   - Secure Docker image storage
+   - Geo-replication capabilities (for production)
+   - Built-in vulnerability scanning (with Defender for Cloud)
+   - Simple authentication with admin credentials or managed identities
+
+4. **Modular Architecture**:
    - Separate Bicep modules for each component
    - Reusable templates for services
    - Clear separation of concerns
@@ -116,14 +125,22 @@ infra/
    - Automatic failover disabled (cost optimization)
    ```
 
-2. **Container Apps Environment** (`container-app-environment.bicep`):
+2. **Azure Container Registry** (`acr.bicep`):
+   ```bicep
+   - Basic SKU (cost-effective for development)
+   - Admin user enabled (simplified authentication)
+   - Located in same region as Container Apps
+   - Outputs: loginServer, username, password
+   ```
+
+3. **Container Apps Environment** (`container-app-environment.bicep`):
    ```bicep
    - Log Analytics workspace integration
    - 30-day log retention
    - Centralized logging for all apps
    ```
 
-3. **Backend Services** (pet, activity, accessory):
+4. **Backend Services** (pet, activity, accessory):
    ```bicep
    - 0.5 CPU, 1GB memory per replica
    - Auto-scale: 1-10 replicas
@@ -132,7 +149,7 @@ infra/
    - Secrets for Cosmos DB keys
    ```
 
-4. **Frontend** (`container-app.frontend.bicep`):
+5. **Frontend** (`container-app.frontend.bicep`):
    ```bicep
    - 0.5 CPU, 1GB memory per replica
    - Auto-scale: 1-5 replicas
@@ -141,6 +158,13 @@ infra/
    ```
 
 ### Task 4: Environment Variables Configuration ✅
+
+**ACR Configuration:**
+The ACR module (`acr.bicep`) creates:
+- Azure Container Registry with Basic SKU
+- Admin user enabled for simplified authentication
+- Public network access enabled
+- Outputs for loginServer, name, and id
 
 **Backend Services Environment:**
 - `COSMOS_ENDPOINT`: Cosmos DB endpoint URL
@@ -152,6 +176,8 @@ infra/
 - `VITE_API_PETS_URL`: Pet service FQDN (HTTPS)
 - `VITE_API_ACTIVITIES_URL`: Activity service FQDN (HTTPS)
 - `VITE_API_ACCESSORIES_URL`: Accessory service FQDN (HTTPS)
+
+**Note**: ACR credentials are retrieved post-deployment and are not exposed as template outputs for security reasons.
 
 ### Task 5: Deployment Instructions
 
@@ -310,27 +336,35 @@ az group delete --name petpal-rg --yes --no-wait
 - **CI/CD Ready**: Built-in support for GitHub Actions and Azure Pipelines
 - **Convention-Based**: Follows Azure best practices by default
 
-### 3. Azure Container Apps Best Practices
+### 3. Azure Container Registry Best Practices
+- **Modular Template**: Separate ACR module for reusability
+- **Admin Credentials**: Enabled for development simplicity
+- **Production Note**: Use managed identities instead of admin credentials in production
+- **Naming Convention**: ACR names cannot contain hyphens (handled in template)
+- **Integration**: Native integration with Container Apps for image pulling
+
+### 4. Azure Container Apps Best Practices
 - **Modular Templates**: Separate modules for different resource types
 - **Parameterization**: Make templates flexible with parameters
 - **Secrets Management**: Never hardcode sensitive values
 - **Resource Dependencies**: Use module outputs for dependencies
 - **Naming Conventions**: Use consistent, descriptive names
 
-### 4. Security Principles Applied
+### 5. Security Principles Applied
 - **Least Privilege**: Services only access required resources
 - **Secrets Protection**: Cosmos keys stored as secrets, not plain text
 - **HTTPS Enforcement**: All ingress configured for secure transport
 - **Network Isolation**: Services communicate within Container Apps environment
 - **Audit Ready**: All actions logged to Log Analytics
+- **Credential Security**: ACR credentials not exposed in template outputs
 
-### 5. Cosmos DB Serverless Advantages
+### 6. Cosmos DB Serverless Advantages
 - **Cost-Effective**: Pay only for operations consumed
 - **Auto-Scaling**: No throughput provisioning required
 - **Ideal for Dev/Test**: Perfect for variable workloads
 - **Migration Path**: Can upgrade to provisioned throughput later
 
-### 6. Scaling Configuration
+### 7. Scaling Configuration
 - **Horizontal Scaling**: Replicas increase based on load
 - **Metric-Based**: HTTP concurrency triggers scaling
 - **Min/Max Replicas**: Prevents over/under scaling
@@ -397,7 +431,38 @@ az containerapp env list \
 az cosmosdb list \
   --resource-group $RESOURCE_GROUP \
   --output table
+
+# Check Azure Container Registry
+az acr list \
+  --resource-group $RESOURCE_GROUP \
+  --output table
 ```
+
+### Retrieve ACR Credentials (for Challenge 09)
+
+After deployment, retrieve ACR credentials for use in CI/CD pipelines:
+
+```bash
+# Get resource group
+RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+
+# Get ACR name from deployment outputs or list
+ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
+
+# Get ACR login server
+ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
+
+# Get ACR admin credentials
+ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
+ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)
+
+# Display credentials (save these for GitHub Secrets in Challenge 09)
+echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
+echo "ACR_USERNAME=$ACR_USERNAME"
+echo "ACR_PASSWORD=$ACR_PASSWORD"
+```
+
+**Store these values securely** - you'll need them for Challenge 09 to configure GitHub Actions.
 
 ### Test Endpoints
 

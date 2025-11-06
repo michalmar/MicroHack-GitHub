@@ -30,6 +30,7 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      - Azure Container Apps Environment
      - 4 Container Apps (pet-service, activity-service, accessory-service, frontend)
      - Azure Cosmos DB (serverless)
+     - Azure Container Registry (ACR) for storing Docker images
      - Log Analytics Workspace (for Container Apps requirement)
    - Plan resource naming conventions and organization
 
@@ -46,6 +47,7 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Organize Bicep files by resource type:
      - `main.bicep` - orchestration template
      - `cosmos.bicep` - Cosmos DB configuration
+     - `acr.bicep` - Azure Container Registry configuration
      - `container-app-environment.bicep` - Container Apps environment
      - `container-app.*.bicep` - individual Container App modules
    - Create `main.parameters.json` for parameter values
@@ -56,6 +58,8 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      "Create a Bicep template for Azure Container Apps environment with Log Analytics"
      
      "Generate Bicep for Cosmos DB serverless with SQL API"
+     
+     "Create Bicep template for Azure Container Registry with Basic SKU and admin enabled"
      
      "Create Bicep module for Container App with environment variables and ingress"
      ```
@@ -105,6 +109,13 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Configure partition keys appropriately
    - Set up throughput settings (serverless mode)
 
+3. **Azure Container Registry Setup**:
+   - Provision Azure Container Registry (ACR) with Basic SKU
+   - Enable admin user for simplified authentication (development)
+   - Configure ACR to be in same resource group as Container Apps
+   - Output ACR login server, username, and password
+   - **Note**: In production, use managed identities instead of admin credentials
+
 ### Task 5: Deployment and Testing
 
 1. **Deploy Infrastructure**:
@@ -133,7 +144,24 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Test backend service endpoints
    - Verify frontend loads and connects to backends
    - Confirm Cosmos DB databases and containers created
-   - Review deployment outputs (URLs, connection strings)
+   - Verify ACR is created and accessible
+   - Review deployment outputs (URLs, connection strings, ACR credentials)
+   - **Save ACR credentials** for use in Challenge 09 (CI/CD):
+     ```bash
+     # Get ACR credentials from deployment outputs
+     ACR_LOGIN_SERVER=$(az deployment group show \
+       --resource-group <rg-name> \
+       --name <deployment-name> \
+       --query properties.outputs.acrLoginServer.value -o tsv)
+     
+     ACR_USERNAME=$(az acr credential show \
+       --name <acr-name> \
+       --query username -o tsv)
+     
+     ACR_PASSWORD=$(az acr credential show \
+       --name <acr-name> \
+       --query passwords[0].value -o tsv)
+     ```
 
 3. **Test the Application**:
    - Access frontend URL from deployment outputs
@@ -158,13 +186,26 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 
 ## Success Criteria
 
-- [ ] All Bicep templates created and organized in `infra/` directory
-- [ ] Successfully deployed all 4 Container Apps to Azure
-- [ ] Cosmos DB provisioned
-- [ ] All services running and passing health checks
-- [ ] Frontend accessible and functioning correctly
-- [ ] Backend APIs responding to requests
-- [ ] Infrastructure can be redeployed consistently
+- [ ] Infrastructure code organized in modular Bicep templates
+- [ ] Azure Container Apps Environment deployed with Log Analytics
+- [ ] Four Container Apps deployed (pet, activity, accessory, frontend)
+- [ ] Azure Cosmos DB provisioned with serverless capability
+- [ ] Azure Container Registry (ACR) created and accessible
+- [ ] All services have correct environment variables configured
+- [ ] Services accessible via HTTPS endpoints
+- [ ] Frontend connects to backend APIs successfully
+- [ ] Data persists in Cosmos DB
+- [ ] ACR credentials saved for CI/CD (Challenge 09)
+- [ ] Deployment can be repeated reliably (infrastructure as code)
+
+**Preparation for Challenge 09:**
+After completing this challenge, you should have:
+- ACR login server URL (e.g., `petpal12345.azurecr.io`)
+- ACR admin username and password
+- Resource group name
+- Container App names for all services
+
+These will be used in Challenge 09 for automated deployments via GitHub Actions.
 
 ## Infrastructure as Code with Copilot
 

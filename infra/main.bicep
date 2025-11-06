@@ -1,5 +1,6 @@
 // Main Bicep template for PetPal microservices infrastructure
 // This template provisions:
+// - Azure Container Registry (ACR) for Docker images
 // - Azure Container Apps Environment
 // - Azure Cosmos DB (serverless)
 // - Container Apps for each microservice (pets, activities, accessories)
@@ -29,8 +30,19 @@ var resourcePrefix = 'petpal-${environmentName}'
 var cosmosAccountName = '${resourcePrefix}-cosmos-${uniqueSuffix}'
 var containerAppEnvName = '${resourcePrefix}-env-${uniqueSuffix}'
 var logAnalyticsName = '${resourcePrefix}-logs-${uniqueSuffix}'
+var acrName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '') // ACR names cannot contain hyphens
 
 // Module imports
+module containerRegistry 'acr.bicep' = {
+  name: 'acr-deployment'
+  params: {
+    name: acrName
+    location: location
+    sku: 'Basic'
+    adminUserEnabled: true
+  }
+}
+
 module cosmosDb 'cosmos.bicep' = {
   name: 'cosmosdb-deployment'
   params: {
@@ -57,10 +69,6 @@ module petService 'container-app.pet-service.bicep' = {
     cosmosEndpoint: cosmosDb.outputs.endpoint
     cosmosKey: cosmosDb.outputs.primaryKey
   }
-  dependsOn: [
-    containerAppEnvironment
-    cosmosDb
-  ]
 }
 
 module activityService 'container-app.activity-service.bicep' = {
@@ -72,10 +80,6 @@ module activityService 'container-app.activity-service.bicep' = {
     cosmosEndpoint: cosmosDb.outputs.endpoint
     cosmosKey: cosmosDb.outputs.primaryKey
   }
-  dependsOn: [
-    containerAppEnvironment
-    cosmosDb
-  ]
 }
 
 module accessoryService 'container-app.accessory-service.bicep' = {
@@ -87,10 +91,6 @@ module accessoryService 'container-app.accessory-service.bicep' = {
     cosmosEndpoint: cosmosDb.outputs.endpoint
     cosmosKey: cosmosDb.outputs.primaryKey
   }
-  dependsOn: [
-    containerAppEnvironment
-    cosmosDb
-  ]
 }
 
 module frontend 'container-app.frontend.bicep' = {
@@ -104,16 +104,12 @@ module frontend 'container-app.frontend.bicep' = {
     activityServiceUrl: activityService.outputs.fqdn
     accessoryServiceUrl: accessoryService.outputs.fqdn
   }
-  dependsOn: [
-    containerAppEnvironment
-    petService
-    activityService
-    accessoryService
-  ]
 }
 
 // Outputs
 output cosmosEndpoint string = cosmosDb.outputs.endpoint
+output acrLoginServer string = containerRegistry.outputs.loginServer
+output acrName string = containerRegistry.outputs.name
 output petServiceUrl string = petService.outputs.fqdn
 output activityServiceUrl string = activityService.outputs.fqdn
 output accessoryServiceUrl string = accessoryService.outputs.fqdn
