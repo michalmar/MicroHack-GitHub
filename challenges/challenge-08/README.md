@@ -59,10 +59,16 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      
      "Generate Bicep for Cosmos DB serverless with SQL API"
      
-     "Create Bicep template for Azure Container Registry with Basic SKU and admin enabled"
+    "Create Bicep template for Azure Container Registry with Basic SKU and admin disabled"
      
      "Create Bicep module for Container App with environment variables and ingress"
      ```
+
+3. **Configure GitHub Workload Identity**:
+  - Add a user-assigned managed identity to `main.bicep` (for example `petpal-<env>-gha-mi-<suffix>`)
+  - Create `federatedIdentityCredential` resources that trust your GitHub repository subjects (default: `repo:michalmar/MicroHack-GitHub:ref:refs/heads/main`)
+  - Grant the identity `Contributor` on the resource group and `AcrPush` on the ACR to support CI/CD deployments without client secrets
+  - Output the managed identity `clientId`, `principalId`, and `resourceId` so Challenge 09 workflows can reference them
 
 ### Task 3: Implement Container Infrastructure
 
@@ -111,10 +117,10 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 
 3. **Azure Container Registry Setup**:
    - Provision Azure Container Registry (ACR) with Basic SKU
-   - Enable admin user for simplified authentication (development)
-   - Configure ACR to be in same resource group as Container Apps
-   - Output ACR login server, username, and password
-   - **Note**: In production, use managed identities instead of admin credentials
+  - Disable the admin user so no username/password secrets are created
+  - Configure ACR to be in same resource group as Container Apps
+  - Output the ACR login server and resource ID (credentials are supplied later via managed identity)
+  - Grant your GitHub managed identity the `AcrPush` role for image publishing
 
 ### Task 5: Deployment and Testing
 
@@ -145,23 +151,30 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Verify frontend loads and connects to backends
    - Confirm Cosmos DB databases and containers created
    - Verify ACR is created and accessible
-   - Review deployment outputs (URLs, connection strings, ACR credentials)
-   - **Save ACR credentials** for use in Challenge 09 (CI/CD):
+   - Review deployment outputs (URLs, connection strings, managed identity information)
+   - Capture identity values for GitHub Actions federation:
      ```bash
-     # Get ACR credentials from deployment outputs
-     ACR_LOGIN_SERVER=$(az deployment group show \
+     # Retrieve managed identity outputs
+     MI_CLIENT_ID=$(az deployment group show \
        --resource-group <rg-name> \
        --name <deployment-name> \
-       --query properties.outputs.acrLoginServer.value -o tsv)
-     
-     ACR_USERNAME=$(az acr credential show \
-       --name <acr-name> \
-       --query username -o tsv)
-     
-     ACR_PASSWORD=$(az acr credential show \
-       --name <acr-name> \
-       --query passwords[0].value -o tsv)
+       --query properties.outputs.githubManagedIdentityClientId.value -o tsv)
+
+     MI_PRINCIPAL_ID=$(az deployment group show \
+       --resource-group <rg-name> \
+       --name <deployment-name> \
+       --query properties.outputs.githubManagedIdentityPrincipalId.value -o tsv)
+
+     MI_RESOURCE_ID=$(az deployment group show \
+       --resource-group <rg-name> \
+       --name <deployment-name> \
+       --query properties.outputs.githubManagedIdentityResourceId.value -o tsv)
+
+     echo "AZURE_CLIENT_ID=$MI_CLIENT_ID"
+     echo "MANAGED_IDENTITY_OBJECT_ID=$MI_PRINCIPAL_ID"
+     echo "MANAGED_IDENTITY_RESOURCE_ID=$MI_RESOURCE_ID"
      ```
+   - Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` (`az account show --query tenantId -o tsv`), and `AZURE_SUBSCRIPTION_ID` (`az account show --query id -o tsv`) as GitHub secrets for Challenge 09
 
 3. **Test the Application**:
    - Access frontend URL from deployment outputs
@@ -195,13 +208,15 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 - [ ] Services accessible via HTTPS endpoints
 - [ ] Frontend connects to backend APIs successfully
 - [ ] Data persists in Cosmos DB
-- [ ] ACR credentials saved for CI/CD (Challenge 09)
+- [ ] GitHub federated managed identity created with required role assignments
+- [ ] Managed identity outputs captured for Challenge 09 workflows
 - [ ] Deployment can be repeated reliably (infrastructure as code)
 
 **Preparation for Challenge 09:**
 After completing this challenge, you should have:
 - ACR login server URL (e.g., `petpal12345.azurecr.io`)
-- ACR admin username and password
+- Managed identity client ID, principal ID, and resource ID
+- Azure tenant ID and subscription ID
 - Resource group name
 - Container App names for all services
 

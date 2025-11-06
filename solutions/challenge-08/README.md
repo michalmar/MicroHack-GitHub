@@ -86,7 +86,7 @@ infra/
    - Secure Docker image storage
    - Geo-replication capabilities (for production)
    - Built-in vulnerability scanning (with Defender for Cloud)
-   - Simple authentication with admin credentials or managed identities
+  - Workload identity federation support for GitHub Actions (no admin credentials)
 
 4. **Modular Architecture**:
    - Separate Bicep modules for each component
@@ -108,10 +108,10 @@ infra/
    - Public network access (can be restricted to VNet)
    - Each service exposed on unique ports
 
-3. **Ready for Managed Identity** (future enhancement):
-   - Infrastructure prepared for system-assigned identities
-   - Can migrate from key-based to identity-based auth
-   - RBAC roles can be assigned post-deployment
+3. **GitHub Workload Identity**:
+  - User-assigned managed identity provisioned for GitHub Actions
+  - Federated credentials trust `repo:michalmar/MicroHack-GitHub:ref:refs/heads/main`
+  - RBAC grants `Contributor` on the resource group and `AcrPush` on the registry—no secrets needed
 
 ### Task 3: Core Infrastructure Implementation ✅
 
@@ -127,10 +127,10 @@ infra/
 
 2. **Azure Container Registry** (`acr.bicep`):
    ```bicep
-   - Basic SKU (cost-effective for development)
-   - Admin user enabled (simplified authentication)
-   - Located in same region as Container Apps
-   - Outputs: loginServer, username, password
+  - Basic SKU (cost-effective for development)
+  - Admin user disabled to avoid shared credentials
+  - Located in same region as Container Apps
+  - Outputs: loginServer, name, resource ID for role assignments
    ```
 
 3. **Container Apps Environment** (`container-app-environment.bicep`):
@@ -162,7 +162,7 @@ infra/
 **ACR Configuration:**
 The ACR module (`acr.bicep`) creates:
 - Azure Container Registry with Basic SKU
-- Admin user enabled for simplified authentication
+- Admin user disabled (GitHub pushes via managed identity + AcrPush role)
 - Public network access enabled
 - Outputs for loginServer, name, and id
 
@@ -177,7 +177,7 @@ The ACR module (`acr.bicep`) creates:
 - `VITE_API_ACTIVITIES_URL`: Activity service FQDN (HTTPS)
 - `VITE_API_ACCESSORIES_URL`: Accessory service FQDN (HTTPS)
 
-**Note**: ACR credentials are retrieved post-deployment and are not exposed as template outputs for security reasons.
+**Note**: Container image pushes use Azure workload identity federation; no admin credentials are exposed or required.
 
 ### Task 5: Deployment Instructions
 
@@ -338,8 +338,8 @@ az group delete --name petpal-rg --yes --no-wait
 
 ### 3. Azure Container Registry Best Practices
 - **Modular Template**: Separate ACR module for reusability
-- **Admin Credentials**: Enabled for development simplicity
-- **Production Note**: Use managed identities instead of admin credentials in production
+- **Admin Credentials**: Disabled so no shared secrets are generated
+- **Deployment Identity**: GitHub workload identity receives `AcrPush` for image publishing
 - **Naming Convention**: ACR names cannot contain hyphens (handled in template)
 - **Integration**: Native integration with Container Apps for image pulling
 
@@ -356,7 +356,7 @@ az group delete --name petpal-rg --yes --no-wait
 - **HTTPS Enforcement**: All ingress configured for secure transport
 - **Network Isolation**: Services communicate within Container Apps environment
 - **Audit Ready**: All actions logged to Log Analytics
-- **Credential Security**: ACR credentials not exposed in template outputs
+- **Credential Security**: CI/CD uses federated managed identity instead of stored credentials
 
 ### 6. Cosmos DB Serverless Advantages
 - **Cost-Effective**: Pay only for operations consumed
@@ -438,31 +438,48 @@ az acr list \
   --output table
 ```
 
-### Retrieve ACR Credentials (for Challenge 09)
+### Capture Managed Identity Metadata (for Challenge 09)
 
-After deployment, retrieve ACR credentials for use in CI/CD pipelines:
+After deployment, gather the managed identity details required for GitHub workload identity federation:
 
 ```bash
 # Get resource group
 RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
 
-# Get ACR name from deployment outputs or list
-ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
+# Identify the most recent deployment
+DEPLOYMENT_NAME=$(az deployment group list \
+  --resource-group $RESOURCE_GROUP \
+  --query "[0].name" -o tsv)
 
-# Get ACR login server
-ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
+# Retrieve managed identity outputs
+AZURE_CLIENT_ID=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name $DEPLOYMENT_NAME \
+  --query properties.outputs.githubManagedIdentityClientId.value -o tsv)
 
-# Get ACR admin credentials
-ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
-ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)
+MANAGED_IDENTITY_OBJECT_ID=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name $DEPLOYMENT_NAME \
+  --query properties.outputs.githubManagedIdentityPrincipalId.value -o tsv)
 
-# Display credentials (save these for GitHub Secrets in Challenge 09)
-echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
-echo "ACR_USERNAME=$ACR_USERNAME"
-echo "ACR_PASSWORD=$ACR_PASSWORD"
+MANAGED_IDENTITY_RESOURCE_ID=$(az deployment group show \
+  --resource-group $RESOURCE_GROUP \
+  --name $DEPLOYMENT_NAME \
+  --query properties.outputs.githubManagedIdentityResourceId.value -o tsv)
+
+echo "AZURE_CLIENT_ID=$AZURE_CLIENT_ID"
+echo "MANAGED_IDENTITY_OBJECT_ID=$MANAGED_IDENTITY_OBJECT_ID"
+echo "MANAGED_IDENTITY_RESOURCE_ID=$MANAGED_IDENTITY_RESOURCE_ID"
+
+# Tenant and subscription IDs (needed for azure/login)
+AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+echo "AZURE_TENANT_ID=$AZURE_TENANT_ID"
+echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
 ```
 
-**Store these values securely** - you'll need them for Challenge 09 to configure GitHub Actions.
+Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_SUBSCRIPTION_ID` as GitHub secrets (or environment secrets). The object and resource IDs are helpful for auditing role assignments and troubleshooting.
 
 ### Test Endpoints
 
