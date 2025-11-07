@@ -102,6 +102,9 @@ repo:<owner>/<repo>
   ```bash
   REPO_FULL=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
+  # Get resource group from azd environment
+  RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+
   # Get Azure identity information
   AZURE_CLIENT_ID=$(az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, '-gha-mi-')].clientId" -o tsv)
 
@@ -113,6 +116,7 @@ repo:<owner>/<repo>
   ACR_LOGIN_SERVER=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].loginServer" -o tsv)
 
   echo "Repository: $REPO_FULL"
+  echo "RESOURCE_GROUP=$RESOURCE_GROUP"
   echo "AZURE_CLIENT_ID=$AZURE_CLIENT_ID"
   echo "AZURE_TENANT_ID=$AZURE_TENANT_ID"
   echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
