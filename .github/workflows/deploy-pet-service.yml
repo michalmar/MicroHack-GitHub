@@ -68,6 +68,14 @@ jobs:
       - name: Deploy to Container App
         run: |
           APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'pet-service')].name" -o tsv)
+          
+          # Get the managed identity ID for the container app
+          IDENTITY_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'keys[0]')
+          
+          echo "Using managed identity: $IDENTITY_ID"
 
           # Update or create the secret for Cosmos DB key
           az containerapp secret set \
@@ -76,6 +84,7 @@ jobs:
             --secrets cosmos-key="${{ steps.cosmos.outputs.key }}"
 
           # Update the container app with new image and environment variables
+          # The registries configuration with managed identity should already be set via Bicep
           az containerapp update \
             --name "$APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
