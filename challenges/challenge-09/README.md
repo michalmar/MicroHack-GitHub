@@ -21,8 +21,9 @@ Build a complete CI/CD pipeline for the PetPal microservices application using G
 - Understanding of Docker, GitHub Actions, and CI/CD concepts
 
 **Required Information from Challenge 08:**
-- ACR login server (e.g., `petpal12345.azurecr.io`)
-- ACR admin username and password
+- ACR login server and registry name (e.g., `petpal12345.azurecr.io`, `petpalacr12345`)
+- GitHub managed identity client ID (`githubManagedIdentityClientId` output)
+- Azure tenant ID and subscription ID
 - Resource group name
 - Container App names for all services
 
@@ -61,92 +62,101 @@ Start simple, validate each phase works, then add complexity.
 
 ### Task 1: Setup and Single Service Deployment
 
-**Goal**: Deploy the Pet Service manually, then automate with GitHub Actions.
+**Goal**: Deploy the Pet Service automatically with GitHub Actions.
 
-#### 1.1 Verify Azure Container Registry (ACR)
-
-Your ACR should already exist from Challenge 08. Verify and retrieve credentials:
-
-```bash
-# Get resource group from your azd deployment
-RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
-
-# Find your ACR (created in Challenge 08)
-ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
-
-# Get ACR credentials
-ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --query loginServer -o tsv)
-ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)
-ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)
-
-echo "ACR_NAME=$ACR_NAME"
-echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
-echo "ACR_USERNAME=$ACR_USERNAME"
-echo "ACR_PASSWORD=$ACR_PASSWORD"
-
-# Store these values as GitHub Secrets using GitHub CLI
-# Note: Requires GitHub CLI authenticated with 'repo' scope including secrets write permission
-
-# Option 1: Using gh CLI (requires proper authentication)
-# If GITHUB_TOKEN environment variable is set, temporarily unset it first:
-# unset GITHUB_TOKEN
-# gh auth login --scopes "repo,workflow"
-
-gh secret set ACR_LOGIN_SERVER --body "$ACR_LOGIN_SERVER" --repo <owner>/<repo>
-gh secret set ACR_USERNAME --body "$ACR_USERNAME" --repo <owner>/<repo>
-gh secret set ACR_PASSWORD --body "$ACR_PASSWORD" --repo <owner>/<repo>
-
-# Option 2: If gh CLI fails with HTTP 403 permission issues
-# The GITHUB_TOKEN environment variable may be interfering
-# Unset it temporarily and re-authenticate:
-# unset GITHUB_TOKEN
-# gh auth login --scopes "repo,workflow"
-# Then retry the gh secret set commands above
-
-# Option 3: Use GitHub UI (recommended if CLI fails)
-# 1. Go to: https://github.com/<owner>/<repo>/settings/secrets/actions
-# 2. Click "New repository secret"
-# 3. Add each secret manually:
-#    - Name: ACR_LOGIN_SERVER, Value: (paste $ACR_LOGIN_SERVER value)
-#    - Name: ACR_USERNAME, Value: (paste $ACR_USERNAME value)
-#    - Name: ACR_PASSWORD, Value: (paste $ACR_PASSWORD value)
-
-# Verify secrets were created (using gh CLI)
-gh secret list --repo <owner>/<repo>
-
-# Or verify in GitHub UI:
-echo "Verify secrets at: https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/settings/secrets/actions"
-```
-
-#### 1.2 Build and Push Pet Service Image Manually
-
-The Pet Service already has a Dockerfile at `backend/pet-service/Dockerfile`. Let's build and push it:
-
-```bash
-# Navigate to pet service directory
-cd /workspaces/MicroHack-GitHub/backend/pet-service
-
-# Build the Docker image
-docker build -t petpal-pet-service:v1.0.0 .
-
-# Tag for ACR
-docker tag petpal-pet-service:v1.0.0 $ACR_LOGIN_SERVER/petpal-pet-service:v1.0.0
-
-# Login to ACR and push
-az acr login --name $ACR_NAME
-docker push $ACR_LOGIN_SERVER/petpal-pet-service:v1.0.0
-```
-
-```bash
+<!-- ```bash
 # Get Container App name from azd deployment
-PET_SERVICE_NAME=$(az containerapp list --resource-group 
+PET_SERVICE_NAME=$(az containerapp list --resource-group $RESOURCE_GROUP --query "[?contains(name, 'pet-service')].name" -o tsv)
 # Get the service URL
 PET_SERVICE_URL=$(az containerapp show --name $PET_SERVICE_NAME --resource-group $RESOURCE_GROUP --query properties.configuration.ingress.fqdn -o tsv)
 echo "Pet Service URL: https://$PET_SERVICE_URL"
 
 # Test the service
 curl https://$PET_SERVICE_URL/health
+``` -->
+
+#### 1.1 Configure GitHub Federated Identity
+
+Before creating workflows, grant GitHub Actions access to Azure using the managed identity provisioned in Challenge 08.
+
+Go to **Azure Portal → Managed Identities → [Your Identity] → Federated Identity Credentials**:
+
+![managed-identity-federated-credential](../../solutions/challenge-09/docs/mi-fed1.png)
+
+Setup the federated credential with your repo:
+
+
+
+![federated-credential-config](../../solutions/challenge-09/docs/mi-fed2.png)
+
+Get the **Client ID** from the identity overview page.
+![managed-identity-client-id](../../solutions/challenge-09/docs/SCR-20251106-phjf.png)
+
+
 ```
+repo:<owner>/<repo>
+```
+
+1. **Retrieve identity metadata and ACR details**
+
+  ```bash
+  REPO_FULL=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+
+  # Get resource group from azd environment
+  RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+
+  # Get Azure identity information
+  AZURE_CLIENT_ID=$(az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, '-gha-mi-')].clientId" -o tsv)
+
+  AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
+  AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+  # Get Azure Container Registry details
+  ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].name" -o tsv)
+  ACR_LOGIN_SERVER=$(az acr list --resource-group $RESOURCE_GROUP --query "[0].loginServer" -o tsv)
+
+  echo "Repository: $REPO_FULL"
+  echo "RESOURCE_GROUP=$RESOURCE_GROUP"
+  echo "AZURE_CLIENT_ID=$AZURE_CLIENT_ID"
+  echo "AZURE_TENANT_ID=$AZURE_TENANT_ID"
+  echo "AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID"
+  echo "ACR_NAME=$ACR_NAME"
+  echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER"
+  ```
+
+2. **Store GitHub secrets** (requires `repo` + `workflow` scopes on the GitHub CLI authentication):
+
+
+  ```bash
+  gh secret set AZURE_CLIENT_ID --body "$AZURE_CLIENT_ID" --repo "$REPO_FULL"
+  gh secret set AZURE_TENANT_ID --body "$AZURE_TENANT_ID" --repo "$REPO_FULL"
+  gh secret set AZURE_SUBSCRIPTION_ID --body "$AZURE_SUBSCRIPTION_ID" --repo "$REPO_FULL"
+  ```
+> Note: if you see 403 errors, ensure your GitHub CLI authentication has the required scopes. example error message: `failed to fetch public key: HTTP 403: Resource not accessible by integration `
+> 
+> How to setup GitHub CLI authentication with proper scopes:
+> - Run `gh auth login --scopes "repo,workflow"`
+> - or refresh using `gh auth refresh --scopes "repo,workflow"`
+
+
+3. **Store GitHub variables** for common values:
+
+  ```bash
+  gh variable set RESOURCE_GROUP --body "$RESOURCE_GROUP" --repo "$REPO_FULL"
+  gh variable set ACR_NAME --body "$ACR_NAME" --repo "$REPO_FULL"
+  gh variable set ACR_LOGIN_SERVER --body "$ACR_LOGIN_SERVER" --repo "$REPO_FULL"
+  ```
+
+4. **Verify federated credential subject** (optional):
+
+  ```bash
+  az identity federated-credential list \
+    --identity-name $(az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, '-gha-mi-')].name" -o tsv) \
+    --resource-group $RESOURCE_GROUP \
+    --query "[].subject"
+  ```
+
+  Ensure the output contains `repo:<owner>/<repo>:ref:refs/heads/main` (or the branch/environment you'll deploy from). Update the Challenge 08 parameters if you need additional subjects.
 
 #### 1.4 Create First GitHub Actions Workflow
 
@@ -163,199 +173,108 @@ on:
       - '.github/workflows/deploy-pet-service.yml'
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   SERVICE_NAME: petpal-pet-service
   SERVICE_PATH: backend/pet-service
   COSMOS_DATABASE_NAME: petservice
   COSMOS_CONTAINER_NAME: pets
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Azure login (federated managed identity)
+        uses: azure/login@v2
+        with:
+          auth-type: ID_TOKEN
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticate Docker with ACR
+        run: az acr login --name "$ACR_NAME" --output none
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
-      
+
       - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: ./${{ env.SERVICE_PATH }}
           push: true
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
+
       - name: Get Cosmos DB credentials
         id: cosmos
         run: |
-          COSMOS_ENDPOINT=$(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].documentEndpoint" -o tsv)
-          COSMOS_KEY=$(az cosmosdb keys list \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --name $(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv) \
-            --type keys --query primaryMasterKey -o tsv)
+          COSMOS_ACCOUNT=$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+          COSMOS_ENDPOINT=$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --query documentEndpoint -o tsv)
+
+          echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Get Container App managed identity
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'pet-service')].name" -o tsv)
           
-          echo "endpoint=$COSMOS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "::add-mask::$COSMOS_KEY"
-          echo "key=$COSMOS_KEY" >> $GITHUB_OUTPUT
-      
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Container App
         run: |
-          APP_NAME=$(az containerapp list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[?contains(name, 'pet-service')].name" -o tsv)
-          
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'pet-service')].name" -o tsv)
+
           az containerapp update \
-            --name $APP_NAME \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --set-env-vars \
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
               COSMOS_ENDPOINT=${{ steps.cosmos.outputs.endpoint }} \
               COSMOS_DATABASE_NAME=${{ env.COSMOS_DATABASE_NAME }} \
-              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }} \
-            --secrets \
-              cosmos-key=${{ steps.cosmos.outputs.key }} \
-            --replace-env-vars \
-              COSMOS_KEY=secretref:cosmos-key
+              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }}
 ```
 
 **Required GitHub Secrets:**
-- `ACR_LOGIN_SERVER` - Your ACR login server (e.g., petpal12345.azurecr.io)
-- `ACR_USERNAME` - ACR admin username
-- `ACR_PASSWORD` - ACR admin password
-- `AZURE_CREDENTIALS` - Azure service principal credentials (JSON format)
+- `AZURE_CLIENT_ID` - Managed identity client ID from Challenge 08 outputs
+- `AZURE_TENANT_ID` - Azure tenant ID
+- `AZURE_SUBSCRIPTION_ID` - Azure subscription ID
 
 **Required GitHub Variables:**
-- `RESOURCE_GROUP` - Your Azure resource group name
+- `RESOURCE_GROUP` - Azure resource group name
+- `ACR_NAME` - Azure Container Registry name
+- `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
-**Setup GitHub Secrets and Variables:**
+> **Important**: The infrastructure now uses **Managed Identity with RBAC** for Cosmos DB authentication instead of master keys. Container Apps authenticate to Cosmos DB using their managed identities with the **Cosmos DB Data Contributor** role. No `COSMOS_KEY` secret is needed in Container App configuration.
 
-```bash
-# Get your repository name
-# Note: If gh CLI uses GITHUB_TOKEN from environment with limited scopes,
-# you may need to unset it first: unset GITHUB_TOKEN && gh auth login --scopes "repo,workflow"
-REPO_OWNER=$(gh repo view --json owner -q .owner.login)
-REPO_NAME=$(gh repo view --json name -q .name)
-REPO_FULL="${REPO_OWNER}/${REPO_NAME}"
+Use the commands in **Step 1.3** to configure these secrets and variables. If you prefer the GitHub UI, add the same entries manually via **Settings → Secrets and variables → Actions**.
 
-echo "Repository: $REPO_FULL"
-
-# Set up GitHub Secrets (ACR credentials already set above)
-# Create Azure service principal for GitHub Actions
-az ad sp create-for-rbac \
-  --name "github-actions-petpal" \
-  --role contributor \
-  --scopes /subscriptions/$(az account show --query id -o tsv)/resourceGroups/$RESOURCE_GROUP \
-  --sdk-auth > azure-credentials.json
-
-# Store Azure credentials as secret
-# If gh CLI fails, use GitHub UI to create secrets
-gh secret set AZURE_CREDENTIALS < azure-credentials.json --repo "$REPO_FULL" || {
-  echo "⚠️  gh CLI failed. Please set secrets manually in GitHub UI:"
-  echo "   URL: https://github.com/$REPO_FULL/settings/secrets/actions"
-  echo ""
-  echo "   Secret name: AZURE_CREDENTIALS"
-  echo "   Secret value (copy from azure-credentials.json):"
-  cat azure-credentials.json
-  echo ""
-  echo "   Press Enter after manually adding the secret..."
-  read
-}
-
-# Clean up temporary file
-rm azure-credentials.json
-
-# Set GitHub variable for resource group
-gh variable set RESOURCE_GROUP --body "$RESOURCE_GROUP" --repo "$REPO_FULL" || {
-  echo "⚠️  gh CLI failed. Please set variable manually in GitHub UI:"
-  echo "   URL: https://github.com/$REPO_FULL/settings/variables/actions"
-  echo "   Variable name: RESOURCE_GROUP"
-  echo "   Variable value: $RESOURCE_GROUP"
-}
-
-# Verify all secrets and variables
-echo ""
-echo "=== Verification ==="
-echo "GitHub Secrets (should show 4 secrets):"
-gh secret list --repo "$REPO_FULL" 2>/dev/null || echo "⚠️  Use GitHub UI to verify: https://github.com/$REPO_FULL/settings/secrets/actions"
-echo ""
-echo "GitHub Variables (should show 1 variable):"
-gh variable list --repo "$REPO_FULL" 2>/dev/null || echo "⚠️  Use GitHub UI to verify: https://github.com/$REPO_FULL/settings/variables/actions"
-```
-
-**Troubleshooting GitHub CLI Authentication:**
-
-If you encounter `HTTP 403: Resource not accessible by integration`, it means your GitHub token lacks proper permissions:
-
-```bash
-# Check current authentication status
-gh auth status
-
-# If you see "The value of the GITHUB_TOKEN environment variable is being used for authentication"
-# This means a token from the environment is being used instead of gh auth credentials
-
-# Solution 1: Temporarily unset GITHUB_TOKEN and re-authenticate (Recommended for dev container)
-unset GITHUB_TOKEN
-gh auth login --scopes "repo,workflow"
-# Follow the interactive prompts to authenticate with a token that has proper scopes
-
-# After authentication, you can restore GITHUB_TOKEN for other purposes if needed
-# export GITHUB_TOKEN="<your-token>"
-
-# Solution 2: Use a different token with proper scopes
-# Create a new Personal Access Token at: https://github.com/settings/tokens/new
-# Required scopes: repo (all), workflow
-# Then use it directly:
-unset GITHUB_TOKEN
-gh auth login --with-token <<< "your-new-token-here"
-
-# Solution 3: Use the existing GITHUB_TOKEN if it has proper scopes
-# Check token scopes:
-gh auth status
-# If it shows limited scopes, create a new token with required scopes and update:
-export GITHUB_TOKEN="<new-token-with-repo-and-workflow-scopes>"
-```
-
-**Alternative: Manual Setup via GitHub UI** (Recommended if CLI continues to fail):
-
-1. **Navigate to repository secrets:**
-   ```bash
-   echo "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/settings/secrets/actions"
-   ```
-
-2. **Add these 4 secrets:**
-   - `ACR_LOGIN_SERVER` = (value from `echo $ACR_LOGIN_SERVER`)
-   - `ACR_USERNAME` = (value from `echo $ACR_USERNAME`)
-   - `ACR_PASSWORD` = (value from `echo $ACR_PASSWORD`)
-   - `AZURE_CREDENTIALS` = (contents of azure-credentials.json)
-
-3. **Navigate to repository variables:**
-   ```bash
-   echo "https://github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner)/settings/variables/actions"
-   ```
-
-4. **Add this 1 variable:**
-   - `RESOURCE_GROUP` = (value from `echo $RESOURCE_GROUP`)
+> **Heads-up**: Later sample workflows in this challenge previously referenced service principals and registry passwords. When following the managed identity path, reuse the `azure/login` configuration above (`auth-type: ID_TOKEN`) and rely on `az acr login` instead of `docker/login-action` with static credentials.
 ```
 
 **📝 Task 1 Deliverables:**
 - [ ] ACR verified and accessible (from Challenge 08)
-- [ ] ACR credentials retrieved and stored
+- [ ] GitHub workload identity secrets/variables configured
 - [ ] Pet Service Docker image built and pushed manually
 - [ ] Pet Service Container App updated with custom image
 - [ ] GitHub Actions workflow created and successfully deployed Pet Service
@@ -390,7 +309,8 @@ cp backend/pet-service/Dockerfile backend/accessory-service/Dockerfile
 #### 2.2 Create Workflow for Each Backend Service
 
 Create workflows following the Pet Service pattern. Each backend service needs:
-- **Cosmos DB connection** (endpoint, key, database name, container name)
+- **Cosmos DB connection** (endpoint, database name, container name)
+  - **Note**: No `COSMOS_KEY` needed - services use Managed Identity with RBAC
 - **Service-specific port** (8010, 8020, 8030)
 - **Unique image name** and Container App name
 
@@ -407,11 +327,18 @@ on:
       - '.github/workflows/deploy-activity-service.yml'
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   SERVICE_NAME: petpal-activity-service
   SERVICE_PATH: backend/activity-service
   COSMOS_DATABASE_NAME: activityservice
   COSMOS_CONTAINER_NAME: activities
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
 
 jobs:
   build-and-deploy:
@@ -420,16 +347,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Azure login (federated managed identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticate Docker with ACR
+        run: az acr login --name "$ACR_NAME" --output none
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
       
       - name: Build and push image
         uses: docker/build-push-action@v5
@@ -437,45 +367,75 @@ jobs:
           context: ./${{ env.SERVICE_PATH }}
           push: true
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Get Cosmos DB credentials
+
+      - name: Get Cosmos DB endpoint
         id: cosmos
         run: |
-          COSMOS_ENDPOINT=$(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].documentEndpoint" -o tsv)
-          COSMOS_KEY=$(az cosmosdb keys list \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --name $(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv) \
-            --type keys --query primaryMasterKey -o tsv)
+          COSMOS_ACCOUNT=$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+          COSMOS_ENDPOINT=$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --query documentEndpoint -o tsv)
+
+          echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Get Container App managed identity
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv)
           
-          echo "endpoint=$COSMOS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "::add-mask::$COSMOS_KEY"
-          echo "key=$COSMOS_KEY" >> $GITHUB_OUTPUT
-      
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Container App
         run: |
-          APP_NAME=$(az containerapp list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[?contains(name, 'activity-service')].name" -o tsv)
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv)
           
+          echo "Deploying to Container App: $APP_NAME"
+          echo "Using Managed Identity for Cosmos DB authentication (RBAC)"
+
           az containerapp update \
-            --name $APP_NAME \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --set-env-vars \
-              COSMOS_ENDPOINT=${{ steps.cosmos.outputs.endpoint }} \
-              COSMOS_DATABASE_NAME=${{ env.COSMOS_DATABASE_NAME }} \
-              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }} \
-            --secrets \
-              cosmos-key=${{ steps.cosmos.outputs.key }} \
-            --replace-env-vars \
-              COSMOS_KEY=secretref:cosmos-key
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
+              COSMOS_ENDPOINT="${{ steps.cosmos.outputs.endpoint }}" \
+              COSMOS_DATABASE_NAME="${{ env.COSMOS_DATABASE_NAME }}" \
+              COSMOS_CONTAINER_NAME="${{ env.COSMOS_CONTAINER_NAME }}"
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          APP_URL=$(az containerapp show \
+            --name $(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv) \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          
+          echo "Testing health endpoint: https://$APP_URL/health"
+          
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$APP_URL/health" || echo "000")
+            if [ "$HTTP_CODE" == "200" ]; then
+              echo "✅ Health check passed (HTTP $HTTP_CODE)"
+              curl -s "https://$APP_URL/health" | jq '.'
+              exit 0
+            else
+              echo "⚠️ Attempt $i: Health check returned HTTP $HTTP_CODE, retrying..."
+              sleep 10
+            fi
+          done
+          
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
 ```
 
 **Create `.github/workflows/deploy-accessory-service.yml`:**
@@ -486,6 +446,9 @@ Same structure as Activity Service, but change:
 - `COSMOS_DATABASE_NAME: accessoryservice`
 - `COSMOS_CONTAINER_NAME: accessories`
 - App name query: `[?contains(name, 'accessory-service')]`
+- **Important**: Add the same managed identity retrieval step to get AZURE_CLIENT_ID
+
+> **Security Note**: All backend services authenticate to Cosmos DB using their **user-assigned managed identities** with RBAC. The infrastructure grants each Container App's managed identity the **Cosmos DB Data Contributor** role (`00000000-0000-0000-0000-000000000002`) for data operations and **DocumentDB Account Contributor** role (`5bd9cd88-fe45-4216-938b-f97437e15450`) for database/container creation. This eliminates the need to manage and rotate Cosmos DB master keys in secrets.
 
 **Pro Tip**: Use GitHub Copilot to generate:
 ```
@@ -529,10 +492,15 @@ The frontend requires backend service URLs as environment variables:
 **📝 Task 2 Deliverables:**
 - [ ] All services have Dockerfiles (verify existing, create if missing)
 - [ ] GitHub Actions workflows for all four services (pet, activity, accessory, frontend)
-- [ ] All workflows include proper Cosmos DB environment variables and secrets
+- [ ] All workflows include proper Cosmos DB environment variables (AZURE_CLIENT_ID, endpoint, database, container)
+  - [ ] Verify workflows dynamically retrieve managed identity client ID
+  - [ ] Verify NO `COSMOS_KEY` secrets are configured (using Managed Identity instead)
 - [ ] All workflows successfully deploy on push to main
 - [ ] All services accessible and functional
-- [ ] Frontend connects to all backend services correctly---
+- [ ] Verify Managed Identity authentication to Cosmos DB is working (check health endpoints)
+- [ ] Frontend connects to all backend services correctly
+
+---
 
 ### Task 3: Add Automated Testing
 
@@ -557,7 +525,8 @@ def test_root():
 
 def test_health():
     response = client.get("/health")
-    assert response.status_code in [200, 503]  # 503 if CosmosDB not configured
+    assert response.status_code == 200  # Should be 200 with Managed Identity RBAC configured
+    assert response.json()["status"] == "healthy"
 ```
 
 #### 3.2 Add Testing Stage to Workflows
@@ -1397,10 +1366,11 @@ jobs:
 
 1. **Never commit secrets** - Always use GitHub Secrets
 2. **Use OIDC for Azure** - Federated credentials instead of service principal keys
-3. **Scan containers** - Use Trivy or similar tools
-4. **Pin action versions** - Use `@v4.1.0` not `@main`
-5. **Minimal permissions** - Grant only required RBAC roles
-6. **Secret rotation** - Regularly rotate credentials
+3. **Use Managed Identity for Azure services** - Container Apps authenticate to Cosmos DB via RBAC (no keys)
+4. **Scan containers** - Use Trivy or similar tools
+5. **Pin action versions** - Use `@v4.1.0` not `@main`
+6. **Minimal permissions** - Grant only required RBAC roles (Cosmos DB Data Contributor for data access)
+7. **Avoid secret sprawl** - Leverage Managed Identity to eliminate secrets where possible
 
 ### Workflow Optimization Tips
 

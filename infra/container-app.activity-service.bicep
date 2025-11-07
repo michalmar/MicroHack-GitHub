@@ -1,5 +1,5 @@
 // Container App for Activity Service
-// Provisions Azure Container App for the Activity microservice
+// Provisions Azure Container App for the Activity microservice with Entra ID authentication to Cosmos DB
 // NOTE: Currently using hello world container for infrastructure provisioning
 //       Replace with actual service image during application deployment phase
 
@@ -15,9 +15,11 @@ param containerAppEnvironmentId string
 @description('Cosmos DB endpoint')
 param cosmosEndpoint string
 
-@description('Cosmos DB key')
-@secure()
-param cosmosKey string
+@description('Cosmos DB account resource ID for RBAC role assignment')
+param cosmosAccountId string
+
+@description('Cosmos DB Data Contributor role definition ID')
+param cosmosDataContributorRoleId string
 
 @description('Cosmos DB database name')
 param cosmosDatabaseName string = 'activityservice'
@@ -25,24 +27,95 @@ param cosmosDatabaseName string = 'activityservice'
 @description('Cosmos DB container name')
 param cosmosContainerName string = 'activities'
 
+@description('Azure Container Registry name')
+param acrName string = ''
+
+@description('Azure Container Registry login server')
+param acrLoginServer string = ''
+
+// Managed Identity for ACR Pull - separate identity per microservice
+resource activityServiceIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${name}-identity'
+  location: location
+}
+
+// Reference to ACR for role assignment
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (acrName != '') {
+  name: acrName
+}
+
+// Grant AcrPull role to the managed identity if ACR is specified
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (acrName != '') {
+  name: guid(acr.id, activityServiceIdentity.id, 'acrpull')
+  scope: acr
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+    ) // AcrPull role
+    principalId: activityServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Reference to Cosmos DB account for role assignment
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existing = {
+  name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
+}
+
+// Grant Cosmos DB Data Contributor role to the managed identity (for data plane operations)
+resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
+  name: guid(cosmosAccountId, activityServiceIdentity.id, 'cosmos-data-contributor')
+  parent: cosmosAccount
+  properties: {
+    roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+    principalId: activityServiceIdentity.properties.principalId
+    scope: cosmosAccountId
+  }
+}
+
+// Grant DocumentDB Account Contributor role to the managed identity (for database/container creation)
+// This is needed for create_database_if_not_exists() and create_container_if_not_exists()
+resource cosmosContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cosmosAccountId, activityServiceIdentity.id, 'documentdb-contributor')
+  scope: cosmosAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '5bd9cd88-fe45-4216-938b-f97437e15450'
+    ) // DocumentDB Account Contributor role
+    principalId: activityServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource activityServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
   location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${activityServiceIdentity.id}': {}
+    }
+  }
   properties: {
     environmentId: containerAppEnvironmentId
     configuration: {
       ingress: {
         external: true
-        targetPort: 80
+        targetPort: 8020
         transport: 'auto'
         allowInsecure: false
       }
-      secrets: [
-        {
-          name: 'cosmos-key'
-          value: cosmosKey
-        }
-      ]
+      registries: (acrLoginServer != '')
+        ? [
+            {
+              server: acrLoginServer
+              identity: activityServiceIdentity.id
+            }
+          ]
+        : []
+      // No secrets needed - using Managed Identity for Cosmos DB auth
     }
     template: {
       containers: [
@@ -55,12 +128,12 @@ resource activityServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             {
-              name: 'COSMOS_ENDPOINT'
-              value: cosmosEndpoint
+              name: 'AZURE_CLIENT_ID'
+              value: activityServiceIdentity.properties.clientId
             }
             {
-              name: 'COSMOS_KEY'
-              secretRef: 'cosmos-key'
+              name: 'COSMOS_ENDPOINT'
+              value: cosmosEndpoint
             }
             {
               name: 'COSMOS_DATABASE_NAME'
@@ -70,6 +143,7 @@ resource activityServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'COSMOS_CONTAINER_NAME'
               value: cosmosContainerName
             }
+            // No COSMOS_KEY - using Managed Identity authentication
           ]
         }
       ]
@@ -95,3 +169,5 @@ resource activityServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
 output fqdn string = 'https://${activityServiceApp.properties.configuration.ingress.fqdn}'
 output name string = activityServiceApp.name
 output id string = activityServiceApp.id
+output identityPrincipalId string = activityServiceIdentity.properties.principalId
+output identityClientId string = activityServiceIdentity.properties.clientId

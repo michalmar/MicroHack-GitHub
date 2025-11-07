@@ -10,6 +10,7 @@ The infrastructure provisions the following Azure resources:
 - **Azure Container Apps Environment**: Managed environment for hosting container apps
 - **Log Analytics Workspace**: Centralized logging and monitoring
 - **Azure Cosmos DB**: Serverless NoSQL database for all microservices
+- **GitHub Deployment Identity**: User-assigned managed identity secured with federated credentials
 
 ### Application Services
 - **Pet Service**: Container App using hello world container (port 80) - infrastructure provisioning phase
@@ -29,7 +30,7 @@ The infrastructure provisions the following Azure resources:
 
 ```
 infra/
-├── main.bicep                           # Main orchestration template
+├── main.bicep                           # Main orchestration template (includes GitHub managed identity)
 ├── main.parameters.json                 # Default parameter values
 ├── cosmos.bicep                         # Cosmos DB configuration
 ├── container-app-environment.bicep      # Container Apps environment
@@ -109,6 +110,9 @@ az deployment group create \
 | `environmentName` | Environment name (dev/staging/prod) | `dev` | No |
 | `uniqueSuffix` | Unique suffix for resource names | Auto-generated | No |
 | `frontendImage` | Frontend container image | `ghcr.io/michalmar/petpal-ui:latest` | No |
+| `enableGitHubManagedIdentity` | Creates the user-assigned managed identity and RBAC role assignments | `true` | No |
+| `githubRepository` | GitHub repository in `owner/name` format used when constructing subjects | `michalmar/MicroHack-GitHub` | No |
+| `githubFederatedSubjects` | Array of GitHub OIDC subjects authorized to assume the identity | `['repo:${githubRepository}:ref:refs/heads/main']` | No |
 
 > **Note**: Backend service image parameters have been removed as services use hello world containers during infrastructure provisioning phase.
 
@@ -126,10 +130,14 @@ az deployment group show \
 | Output | Description |
 |--------|-------------|
 | `cosmosEndpoint` | Cosmos DB endpoint URL |
+| `acrResourceId` | Azure Container Registry resource ID |
 | `petServiceUrl` | Pet service FQDN (HTTPS) |
 | `activityServiceUrl` | Activity service FQDN (HTTPS) |
 | `accessoryServiceUrl` | Accessory service FQDN (HTTPS) |
 | `frontendUrl` | Frontend application FQDN (HTTPS) |
+| `githubManagedIdentityClientId` | Client ID for the federated managed identity |
+| `githubManagedIdentityPrincipalId` | Object ID of the managed identity |
+| `githubManagedIdentityResourceId` | Resource ID of the managed identity |
 
 ## Environment Variables
 
@@ -153,6 +161,7 @@ The frontend is configured with:
 3. **Serverless Cosmos DB**: Cost-effective, auto-scaling database
 4. **Network Isolation**: Container Apps running in managed environment
 5. **Minimal Privileges**: Each service only has access to required resources
+6. **Federated CI/CD Identity**: GitHub deployments authenticate via workload identity federation—no stored client secrets
 
 ## Scaling Configuration
 
@@ -175,6 +184,43 @@ All Container Apps send logs to the centralized Log Analytics workspace:
 - **Retention**: 30 days
 - **SKU**: Pay-as-you-go (PerGB2018)
 - **Integration**: Automatic via Container Apps environment
+
+## Managed Identity Federation for GitHub Actions
+
+The deployment creates a user-assigned managed identity (`petpal-<env>-gha-mi-<suffix>`) that is bound to GitHub via workload identity federation. By default, it trusts `repo:michalmar/MicroHack-GitHub:ref:refs/heads/main`. Update the `githubFederatedSubjects` parameter to authorize additional branches, tags, or environments (for example `repo:owner/repo:environment:production`).
+
+### Values required in GitHub
+
+After provisioning, capture the following values:
+
+| GitHub configuration | Value source |
+|----------------------|--------------|
+| `AZURE_CLIENT_ID` | `githubManagedIdentityClientId` output |
+| `AZURE_TENANT_ID` | `az account show --query tenantId -o tsv` |
+| `AZURE_SUBSCRIPTION_ID` | `az account show --query id -o tsv` |
+
+Store them as repository or environment secrets before running workflows. The Azure Login action must request an ID token so that GitHub exchanges it for Azure access:
+
+```yaml
+- name: Azure login (workload identity)
+  uses: azure/login@v2
+  with:
+    auth-type: ID_TOKEN
+    client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+    subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+```
+
+The template also creates a `federatedIdentityCredential` per entry in `githubFederatedSubjects`, so no manual setup is required unless you need to add more subjects later.
+
+### Role assignments
+
+To support container deployments, the identity receives:
+
+- `Contributor` on the resource group (manage Container Apps, Cosmos connection strings, and logging)
+- `AcrPush` on the Azure Container Registry (push images without admin credentials)
+
+Tailor these assignments if you prefer more granular roles.
 
 ## Cost Optimization
 
