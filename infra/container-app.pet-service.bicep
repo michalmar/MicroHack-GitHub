@@ -18,14 +18,23 @@ param cosmosEndpoint string
 @description('Cosmos DB account resource ID for RBAC role assignment')
 param cosmosAccountId string
 
-@description('Cosmos DB Data Contributor role definition ID')
-param cosmosDataContributorRoleId string
+@description('Cosmos DB Data Contributor role definition ID. Leave empty to create a custom role for the pet service.')
+param cosmosDataContributorRoleId string = ''
 
 @description('Cosmos DB database name')
 param cosmosDatabaseName string = 'petservice'
 
 @description('Cosmos DB container name')
 param cosmosContainerName string = 'pets'
+
+@description('Azure RBAC role definition ID to grant control plane permissions (defaults to Cosmos DB Operator).')
+param cosmosControlPlaneRoleDefinitionId string = '230815da-be43-4aae-9cb4-875f7bd000aa'
+
+@description('Name of the custom Cosmos DB data plane role definition to create when no built-in role is supplied.')
+param cosmosDataRoleDefinitionName string = '${name}-data-role'
+
+@description('Optional scope suffix for the data plane role assignment (for example "/dbs/petservice"). Leave empty to scope to the entire account.')
+param cosmosDataPlaneScope string = ''
 
 @description('Azure Container Registry name')
 param acrName string = ''
@@ -63,27 +72,58 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existi
   name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
 }
 
-// Grant Cosmos DB Data Contributor role to the managed identity (for data plane operations)
+var useCustomCosmosDataRole = empty(cosmosDataContributorRoleId)
+var cosmosDataPlaneRoleDefinitionId = useCustomCosmosDataRole
+  ? cosmosDataPlaneRoleDefinition.id
+  : '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+var cosmosDataPlaneAssignmentScope = empty(cosmosDataPlaneScope)
+  ? cosmosAccountId
+  : (startsWith(cosmosDataPlaneScope, '/subscriptions/')
+      ? cosmosDataPlaneScope
+      : '${cosmosAccountId}${cosmosDataPlaneScope}')
+
+resource cosmosDataPlaneRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2025-04-15' = if (useCustomCosmosDataRole) {
+  name: guid(cosmosAccount.id, cosmosDataRoleDefinitionName)
+  parent: cosmosAccount
+  properties: {
+    roleName: cosmosDataRoleDefinitionName
+    type: 'CustomRole'
+    assignableScopes: [
+      cosmosAccount.id
+    ]
+    permissions: [
+      {
+        dataActions: [
+          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
+        ]
+      }
+    ]
+  }
+}
+
+// Grant Cosmos DB data plane permissions to the managed identity
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, petServiceIdentity.id, 'cosmos-data-contributor')
   parent: cosmosAccount
   properties: {
-    roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
     principalId: petServiceIdentity.properties.principalId
-    scope: cosmosAccountId
+    scope: cosmosDataPlaneAssignmentScope
   }
 }
 
-// Grant DocumentDB Account Contributor role to the managed identity (for database/container creation)
-// This is needed for create_database_if_not_exists() and create_container_if_not_exists()
-resource cosmosContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(cosmosAccountId, petServiceIdentity.id, 'documentdb-contributor')
+// Grant control plane access so the identity can manage Cosmos DB account resources when required
+resource cosmosControlPlaneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cosmosAccountId, petServiceIdentity.id, 'cosmos-control-plane')
   scope: cosmosAccount
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      '5bd9cd88-fe45-4216-938b-f97437e15450'
-    ) // DocumentDB Account Contributor role
+      cosmosControlPlaneRoleDefinitionId
+    )
     principalId: petServiceIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
