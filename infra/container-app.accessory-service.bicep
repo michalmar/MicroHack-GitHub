@@ -79,7 +79,7 @@ resource cosmosCustomDataPlaneRoleDefinition 'Microsoft.DocumentDB/databaseAccou
   properties: {
     roleName: '${name}-data-role'
     type: 'CustomRole'
-    assignableScopes: [ cosmosAccount.id ]
+    assignableScopes: [cosmosAccount.id]
     permissions: [
       {
         dataActions: [
@@ -119,7 +119,7 @@ resource accessoryContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/
   properties: {
     resource: {
       id: cosmosContainerName
-      partitionKey: { paths: [ '/id' ], kind: 'Hash' }
+      partitionKey: { paths: ['/id'], kind: 'Hash' }
     }
     options: {}
   }
