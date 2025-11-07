@@ -1,5 +1,5 @@
 // Container App for Pet Service
-// Provisions Azure Container App for the Pet microservice
+// Provisions Azure Container App for the Pet microservice with Entra ID authentication to Cosmos DB
 // NOTE: Currently using hello world container for infrastructure provisioning
 //       Replace with actual service image during application deployment phase
 
@@ -15,9 +15,11 @@ param containerAppEnvironmentId string
 @description('Cosmos DB endpoint')
 param cosmosEndpoint string
 
-@description('Cosmos DB key')
-@secure()
-param cosmosKey string
+@description('Cosmos DB account resource ID for RBAC role assignment')
+param cosmosAccountId string
+
+@description('Cosmos DB Data Contributor role definition ID')
+param cosmosDataContributorRoleId string
 
 @description('Cosmos DB database name')
 param cosmosDatabaseName string = 'petservice'
@@ -56,6 +58,22 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
+// Grant Cosmos DB Data Contributor role to the managed identity
+resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
+  name: guid(cosmosAccountId, petServiceIdentity.id, 'cosmos-data-contributor')
+  parent: cosmosAccount
+  properties: {
+    roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+    principalId: petServiceIdentity.properties.principalId
+    scope: cosmosAccountId
+  }
+}
+
+// Reference to Cosmos DB account for role assignment
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existing = {
+  name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
+}
+
 resource petServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
   location: location
@@ -82,12 +100,7 @@ resource petServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
           ]
         : []
-      secrets: [
-        {
-          name: 'cosmos-key'
-          value: cosmosKey
-        }
-      ]
+      // No secrets needed - using Managed Identity for Cosmos DB auth
     }
     template: {
       containers: [
@@ -104,10 +117,6 @@ resource petServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: cosmosEndpoint
             }
             {
-              name: 'COSMOS_KEY'
-              secretRef: 'cosmos-key'
-            }
-            {
               name: 'COSMOS_DATABASE_NAME'
               value: cosmosDatabaseName
             }
@@ -115,6 +124,7 @@ resource petServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'COSMOS_CONTAINER_NAME'
               value: cosmosContainerName
             }
+            // No COSMOS_KEY - using Managed Identity authentication
           ]
         }
       ]
@@ -140,3 +150,5 @@ resource petServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
 output fqdn string = 'https://${petServiceApp.properties.configuration.ingress.fqdn}'
 output name string = petServiceApp.name
 output id string = petServiceApp.id
+output identityPrincipalId string = petServiceIdentity.properties.principalId
+output identityClientId string = petServiceIdentity.properties.clientId

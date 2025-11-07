@@ -3,6 +3,10 @@ Azure CosmosDB Service
 
 This module provides a service layer for interacting with Azure CosmosDB
 following Azure best practices for authentication, error handling, and performance.
+
+Authentication Strategy:
+- Local Development (localhost): Uses key-based authentication with emulator
+- Azure Deployment: Uses Entra ID (Managed Identity) authentication
 """
 
 import logging
@@ -11,6 +15,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from azure.cosmos import CosmosClient, exceptions as cosmos_exceptions, PartitionKey
+from azure.identity import DefaultAzureCredential
 
 from config import get_settings
 from models import Pet, PetCreate, PetUpdate, PetSearchFilters
@@ -37,35 +42,63 @@ class CosmosDBService:
         self._initialized = False
 
     def _build_cosmos_client_options(self) -> Dict[str, Any]:
-        """Build CosmosClient configuration for consistent usage across services."""
-        disable_ssl_verify = os.getenv(
-            "COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        """
+        Build CosmosClient configuration for consistent usage across services.
+
+        Authentication strategy:
+        - Local (localhost): Key-based authentication with optional SSL verification disabled
+        - Azure: Entra ID (Managed Identity) authentication via DefaultAzureCredential
+        """
         options: Dict[str, Any] = {
             "url": self.settings.cosmos_endpoint,
-            "credential": self.settings.cosmos_key,
             "connection_timeout": 30,
             "request_timeout": 30,
         }
-        if disable_ssl_verify:
-            options["connection_verify"] = False  # type: ignore[arg-type]
-            logger.warning(
-                "COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification is DISABLED (emulator/dev only)")
+
+        if self.settings.is_local:
+            # Local development: Use key-based authentication
+            logger.info("Using key-based authentication (local development)")
+            options["credential"] = self.settings.cosmos_key
+
+            # Check if SSL verification should be disabled (for emulator)
+            disable_ssl_verify = os.getenv(
+                "COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+
+            if disable_ssl_verify:
+                options["connection_verify"] = False  # type: ignore[arg-type]
+                logger.warning(
+                    "COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification is DISABLED (emulator/dev only)")
+        else:
+            # Azure deployment: Use Entra ID (Managed Identity) authentication
+            logger.info(
+                "Using Entra ID authentication (Azure deployment with Managed Identity)")
+            credential = DefaultAzureCredential()
+            options["credential"] = credential
+
         return options
 
     def _ensure_initialized(self):
-        """Ensure CosmosDB client is initialized (lazy initialization)"""
+        """
+        Ensure CosmosDB client is initialized (lazy initialization)
+
+        Uses appropriate authentication based on environment:
+        - Local: Key-based authentication
+        - Azure: Entra ID (Managed Identity) authentication
+        """
         if self._initialized:
             return
 
         try:
+            auth_type = "key-based (local)" if self.settings.is_local else "Entra ID (Managed Identity)"
             logger.info(
-                "Initializing CosmosDB connection with key-based authentication")
+                f"Initializing CosmosDB connection with {auth_type} authentication")
 
             cosmos_client_options = self._build_cosmos_client_options()
             endpoint = cosmos_client_options["url"]
-            if endpoint.startswith("http://"):
+
+            if endpoint.startswith("http://") and not self.settings.is_local:
                 logger.warning(
-                    "COSMOS_ENDPOINT is using http:// – consider switching to https:// for closer parity with production.")
+                    "COSMOS_ENDPOINT is using http:// in production – consider switching to https://")
 
             self.client = CosmosClient(**cosmos_client_options)
             logger.info(f"Connected to CosmosDB endpoint: {endpoint}")
@@ -78,7 +111,7 @@ class CosmosDBService:
 
             self._initialized = True
             logger.info(
-                f"Successfully connected to CosmosDB: {self.settings.cosmos_database_name}/{self.settings.cosmos_container_name}")
+                f"Successfully connected to CosmosDB: {self.settings.cosmos_database_name}/{self.settings.cosmos_container_name} using {auth_type}")
 
         except Exception as e:
             logger.error(f"Failed to initialize CosmosDB client: {e}")

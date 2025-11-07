@@ -4,6 +4,10 @@ Activity Service Database Layer
 This module provides the database service layer for activities using Azure CosmosDB.
 It follows Azure best practices for CosmosDB integration with proper error handling,
 logging, and performance optimization.
+
+Authentication Strategy:
+- Local Development (localhost): Uses key-based authentication with emulator
+- Azure Deployment: Uses Entra ID (Managed Identity) authentication
 """
 
 import os
@@ -12,6 +16,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from azure.cosmos import CosmosClient, PartitionKey
 from azure.cosmos import exceptions as cosmos_exceptions
+from azure.identity import DefaultAzureCredential
 from models import Activity, ActivityCreate, ActivityUpdate, ActivitySearchFilters
 
 # Configure logging
@@ -50,19 +55,43 @@ class ActivityCosmosService:
         logger.info("ActivityCosmosService initialized with lazy loading")
 
     def _build_cosmos_client_options(self) -> Dict[str, Any]:
-        """Build CosmosClient configuration for consistent usage across services."""
-        disable_ssl_verify = os.getenv(
-            "COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+        """
+        Build CosmosClient configuration for consistent usage across services.
+
+        Authentication strategy:
+        - Local (localhost): Key-based authentication with optional SSL verification disabled
+        - Azure: Entra ID (Managed Identity) authentication via DefaultAzureCredential
+        """
+        # Detect if running locally
+        is_local = "localhost" in self.cosmos_endpoint.lower(
+        ) or "127.0.0.1" in self.cosmos_endpoint
+
         options: Dict[str, Any] = {
             "url": self.cosmos_endpoint,
-            "credential": self.cosmos_key,
             "connection_timeout": 30,
             "request_timeout": 30,
         }
-        if disable_ssl_verify:
-            options["connection_verify"] = False  # type: ignore[arg-type]
-            logger.warning(
-                "COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
+
+        if is_local:
+            # Local development: Use key-based authentication
+            logger.info("Using key-based authentication (local development)")
+            options["credential"] = self.cosmos_key
+
+            # Check if SSL verification should be disabled (for emulator)
+            disable_ssl_verify = os.getenv(
+                "COSMOS_EMULATOR_DISABLE_SSL_VERIFY", "0").lower() in ("1", "true", "yes")
+
+            if disable_ssl_verify:
+                options["connection_verify"] = False  # type: ignore[arg-type]
+                logger.warning(
+                    "COSMOS_EMULATOR_DISABLE_SSL_VERIFY is enabled – SSL certificate verification DISABLED (dev/emulator only)")
+        else:
+            # Azure deployment: Use Entra ID (Managed Identity) authentication
+            logger.info(
+                "Using Entra ID authentication (Azure deployment with Managed Identity)")
+            credential = DefaultAzureCredential()
+            options["credential"] = credential
+
         return options
 
     def _ensure_initialized(self):

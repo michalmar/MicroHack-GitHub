@@ -80,7 +80,8 @@ module petService 'container-app.pet-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosKey: cosmosDb.outputs.primaryKey
+    cosmosAccountId: cosmosDb.outputs.accountId
+    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }
@@ -93,7 +94,8 @@ module activityService 'container-app.activity-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosKey: cosmosDb.outputs.primaryKey
+    cosmosAccountId: cosmosDb.outputs.accountId
+    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }
@@ -106,7 +108,8 @@ module accessoryService 'container-app.accessory-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosKey: cosmosDb.outputs.primaryKey
+    cosmosAccountId: cosmosDb.outputs.accountId
+    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }

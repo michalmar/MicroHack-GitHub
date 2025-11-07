@@ -46,8 +46,14 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' = {
   }
 }
 
+// Built-in Cosmos DB Data Contributor role definition
+// This is a built-in role, we just reference it for assignments
+// Role ID: 00000000-0000-0000-0000-000000000002
+var cosmosDataContributorRoleId = '00000000-0000-0000-0000-000000000002'
+
 // Outputs
 output endpoint string = cosmosAccount.properties.documentEndpoint
 output primaryKey string = cosmosAccount.listKeys().primaryMasterKey
 output accountName string = cosmosAccount.name
 output accountId string = cosmosAccount.id
+output dataContributorRoleId string = cosmosDataContributorRoleId

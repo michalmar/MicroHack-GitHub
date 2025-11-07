@@ -258,6 +258,8 @@ jobs:
 - `ACR_NAME` - Azure Container Registry name
 - `ACR_LOGIN_SERVER` - Azure Container Registry login server
 
+> **Important**: The infrastructure now uses **Managed Identity with RBAC** for Cosmos DB authentication instead of master keys. Container Apps authenticate to Cosmos DB using their managed identities with the **Cosmos DB Data Contributor** role. No `COSMOS_KEY` secret is needed in Container App configuration.
+
 Use the commands in **Step 1.3** to configure these secrets and variables. If you prefer the GitHub UI, add the same entries manually via **Settings → Secrets and variables → Actions**.
 
 > **Heads-up**: Later sample workflows in this challenge previously referenced service principals and registry passwords. When following the managed identity path, reuse the `azure/login` configuration above (`auth-type: ID_TOKEN`) and rely on `az acr login` instead of `docker/login-action` with static credentials.
@@ -300,7 +302,8 @@ cp backend/pet-service/Dockerfile backend/accessory-service/Dockerfile
 #### 2.2 Create Workflow for Each Backend Service
 
 Create workflows following the Pet Service pattern. Each backend service needs:
-- **Cosmos DB connection** (endpoint, key, database name, container name)
+- **Cosmos DB connection** (endpoint, database name, container name)
+  - **Note**: No `COSMOS_KEY` needed - services use Managed Identity with RBAC
 - **Service-specific port** (8010, 8020, 8030)
 - **Unique image name** and Container App name
 
@@ -317,11 +320,18 @@ on:
       - '.github/workflows/deploy-activity-service.yml'
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   SERVICE_NAME: petpal-activity-service
   SERVICE_PATH: backend/activity-service
   COSMOS_DATABASE_NAME: activityservice
   COSMOS_CONTAINER_NAME: activities
+  RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
+  ACR_NAME: ${{ vars.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
 
 jobs:
   build-and-deploy:
@@ -330,16 +340,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Azure login (federated managed identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticate Docker with ACR
+        run: az acr login --name "$ACR_NAME" --output none
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
       
       - name: Build and push image
         uses: docker/build-push-action@v5
@@ -347,45 +360,62 @@ jobs:
           context: ./${{ env.SERVICE_PATH }}
           push: true
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Get Cosmos DB credentials
+
+      - name: Get Cosmos DB endpoint
         id: cosmos
         run: |
-          COSMOS_ENDPOINT=$(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].documentEndpoint" -o tsv)
-          COSMOS_KEY=$(az cosmosdb keys list \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --name $(az cosmosdb list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[0].name" -o tsv) \
-            --type keys --query primaryMasterKey -o tsv)
-          
-          echo "endpoint=$COSMOS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "::add-mask::$COSMOS_KEY"
-          echo "key=$COSMOS_KEY" >> $GITHUB_OUTPUT
-      
+          COSMOS_ACCOUNT=$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+          COSMOS_ENDPOINT=$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --query documentEndpoint -o tsv)
+
+          echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
+          echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Container App
         run: |
-          APP_NAME=$(az containerapp list --resource-group ${{ vars.RESOURCE_GROUP }} --query "[?contains(name, 'activity-service')].name" -o tsv)
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv)
           
+          echo "Deploying to Container App: $APP_NAME"
+          echo "Using Managed Identity for Cosmos DB authentication (RBAC)"
+
           az containerapp update \
-            --name $APP_NAME \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_LOGIN_SERVER/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --set-env-vars \
-              COSMOS_ENDPOINT=${{ steps.cosmos.outputs.endpoint }} \
-              COSMOS_DATABASE_NAME=${{ env.COSMOS_DATABASE_NAME }} \
-              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }} \
-            --secrets \
-              cosmos-key=${{ steps.cosmos.outputs.key }} \
-            --replace-env-vars \
-              COSMOS_KEY=secretref:cosmos-key
+              COSMOS_ENDPOINT="${{ steps.cosmos.outputs.endpoint }}" \
+              COSMOS_DATABASE_NAME="${{ env.COSMOS_DATABASE_NAME }}" \
+              COSMOS_CONTAINER_NAME="${{ env.COSMOS_CONTAINER_NAME }}"
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          APP_URL=$(az containerapp show \
+            --name $(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv) \
+            --resource-group "$RESOURCE_GROUP" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          
+          echo "Testing health endpoint: https://$APP_URL/health"
+          
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$APP_URL/health" || echo "000")
+            if [ "$HTTP_CODE" == "200" ]; then
+              echo "✅ Health check passed (HTTP $HTTP_CODE)"
+              curl -s "https://$APP_URL/health" | jq '.'
+              exit 0
+            else
+              echo "⚠️ Attempt $i: Health check returned HTTP $HTTP_CODE, retrying..."
+              sleep 10
+            fi
+          done
+          
+          echo "❌ Health check failed after 5 attempts"
+          exit 1
 ```
 
 **Create `.github/workflows/deploy-accessory-service.yml`:**
@@ -396,6 +426,8 @@ Same structure as Activity Service, but change:
 - `COSMOS_DATABASE_NAME: accessoryservice`
 - `COSMOS_CONTAINER_NAME: accessories`
 - App name query: `[?contains(name, 'accessory-service')]`
+
+> **Security Note**: All backend services authenticate to Cosmos DB using their **user-assigned managed identities** with RBAC. The infrastructure grants each Container App's managed identity the **Cosmos DB Data Contributor** role (`00000000-0000-0000-0000-000000000002`). This eliminates the need to manage and rotate Cosmos DB master keys in secrets.
 
 **Pro Tip**: Use GitHub Copilot to generate:
 ```
@@ -439,10 +471,14 @@ The frontend requires backend service URLs as environment variables:
 **📝 Task 2 Deliverables:**
 - [ ] All services have Dockerfiles (verify existing, create if missing)
 - [ ] GitHub Actions workflows for all four services (pet, activity, accessory, frontend)
-- [ ] All workflows include proper Cosmos DB environment variables and secrets
+- [ ] All workflows include proper Cosmos DB environment variables (endpoint, database, container)
+  - [ ] Verify NO `COSMOS_KEY` secrets are configured (using Managed Identity instead)
 - [ ] All workflows successfully deploy on push to main
 - [ ] All services accessible and functional
-- [ ] Frontend connects to all backend services correctly---
+- [ ] Verify Managed Identity authentication to Cosmos DB is working
+- [ ] Frontend connects to all backend services correctly
+
+---
 
 ### Task 3: Add Automated Testing
 
@@ -467,7 +503,8 @@ def test_root():
 
 def test_health():
     response = client.get("/health")
-    assert response.status_code in [200, 503]  # 503 if CosmosDB not configured
+    assert response.status_code == 200  # Should be 200 with Managed Identity RBAC configured
+    assert response.json()["status"] == "healthy"
 ```
 
 #### 3.2 Add Testing Stage to Workflows
@@ -1307,10 +1344,11 @@ jobs:
 
 1. **Never commit secrets** - Always use GitHub Secrets
 2. **Use OIDC for Azure** - Federated credentials instead of service principal keys
-3. **Scan containers** - Use Trivy or similar tools
-4. **Pin action versions** - Use `@v4.1.0` not `@main`
-5. **Minimal permissions** - Grant only required RBAC roles
-6. **Secret rotation** - Regularly rotate credentials
+3. **Use Managed Identity for Azure services** - Container Apps authenticate to Cosmos DB via RBAC (no keys)
+4. **Scan containers** - Use Trivy or similar tools
+5. **Pin action versions** - Use `@v4.1.0` not `@main`
+6. **Minimal permissions** - Grant only required RBAC roles (Cosmos DB Data Contributor for data access)
+7. **Avoid secret sprawl** - Leverage Managed Identity to eliminate secrets where possible
 
 ### Workflow Optimization Tips
 

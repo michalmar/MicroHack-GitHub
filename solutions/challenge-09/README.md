@@ -31,6 +31,8 @@ Open `test-deployment-health.http` and click "Send Request" on each test.
 
 ### Step 1: Basic CI/CD Pipeline Structure
 
+> **Important Authentication Update**: This solution now uses **Managed Identity with RBAC** for Cosmos DB authentication. Container Apps authenticate using their user-assigned managed identities with the **Cosmos DB Data Contributor** role instead of master keys. This eliminates secret management for database access.
+
 Create `.github/workflows/ci-cd.yml`:
 
 ```yaml
@@ -59,6 +61,8 @@ on:
 env:
   REGISTRY: ${{ vars.ACR_NAME }}
   AZURE_RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP_NAME }}
+
+# Note: No COSMOS_KEY needed - services use Managed Identity with RBAC
 
 jobs:
   changes:
@@ -557,6 +561,15 @@ jobs:
 
 ## Best Practices Implementation
 
+### Authentication Architecture
+
+**Cosmos DB Access via Managed Identity:**
+- Each Container App has a **user-assigned managed identity**
+- Bicep infrastructure grants **Cosmos DB Data Contributor** role to each identity
+- Backend services detect Azure environment and use `DefaultAzureCredential()`
+- Local development still uses `COSMOS_KEY` from `.env` file (detected via localhost endpoint)
+- **Zero secrets** in Container App configuration for database access
+
 ### 1. Security Best Practices
 
 ```yaml
@@ -586,6 +599,18 @@ security-checks:
       if: always()
       with:
         sarif_file: checkov-results.sarif
+
+# Validate Managed Identity RBAC configuration
+    - name: Verify Cosmos DB RBAC
+      run: |
+        # Check that Container Apps have Cosmos DB Data Contributor role
+        for service in pet-service activity-service accessory-service; do
+          echo "Checking RBAC for $service..."
+          az role assignment list \
+            --scope $COSMOS_ACCOUNT_ID \
+            --query "[?principalType=='ServicePrincipal' && contains(roleDefinitionName, 'Cosmos DB Data Contributor')]" \
+            -o table
+        done
 ```
 
 ### 2. Performance and Efficiency
@@ -641,6 +666,35 @@ strategy:
 
 ## Success Validation
 
+### Authentication Verification
+
+**Validate Managed Identity is Working:**
+```bash
+# Check Container App managed identity
+az containerapp show \
+  --name petpal-pet-service \
+  --resource-group $RESOURCE_GROUP \
+  --query "identity.userAssignedIdentities" -o json
+
+# Verify Cosmos DB RBAC role assignments
+COSMOS_ACCOUNT_ID=$(az cosmosdb show \
+  --name $COSMOS_ACCOUNT_NAME \
+  --resource-group $RESOURCE_GROUP \
+  --query id -o tsv)
+
+az role assignment list \
+  --scope $COSMOS_ACCOUNT_ID \
+  --query "[?roleDefinitionName=='Cosmos DB Built-in Data Contributor'].{Principal:principalId,Role:roleDefinitionName}" \
+  -o table
+```
+
+**Test Cosmos DB Access:**
+```bash
+# Services should return 200 OK (not 503)
+curl https://petpal-pet-service.azurecontainerapps.io/health
+# Expected: {"status":"healthy","cosmos_db":"connected"}
+```
+
 ### Metrics to Track
 - **Build Success Rate**: Percentage of successful builds
 - **Deployment Frequency**: How often deployments occur
@@ -669,21 +723,34 @@ customEvents
 
 ## Common Issues and Solutions
 
-### Issue 1: Long Build Times
+### Issue 1: Cosmos DB Authentication Failures
+
+**Symptoms:**
+- Health check returns 503 or authentication errors
+- Logs show "Unauthorized" or "Forbidden" errors accessing Cosmos DB
+
+**Solutions:**
+- Verify RBAC role assignment exists: `az role assignment list --scope $COSMOS_ACCOUNT_ID`
+- Wait 5-10 minutes for role propagation after infrastructure deployment
+- Check Container App has user-assigned managed identity configured
+- Verify backend code uses `DefaultAzureCredential()` when not on localhost
+- Check Application Insights for detailed error messages
+
+### Issue 2: Long Build Times
 **Solutions**:
 - Implement Docker layer caching
 - Use parallel job execution
 - Optimize Dockerfile with multi-stage builds
 - Cache dependencies between runs
 
-### Issue 2: Flaky Tests
+### Issue 3: Flaky Tests
 **Solutions**:
 - Implement test retry mechanisms
 - Use test containers for consistent environments
 - Add proper wait conditions and timeouts
 - Separate unit tests from integration tests
 
-### Issue 3: Deployment Rollback Complexity
+### Issue 4: Deployment Rollback Complexity
 **Solutions**:
 - Implement automated rollback triggers
 - Use blue-green or canary deployment strategies
@@ -697,11 +764,21 @@ customEvents
 - Optimize pipeline performance and efficiency
 - Create comprehensive deployment documentation
 
+## Additional Resources
+
+- [Azure Cosmos DB RBAC Documentation](https://learn.microsoft.com/azure/cosmos-db/how-to-setup-rbac)
+- [Container Apps Managed Identity](https://learn.microsoft.com/azure/container-apps/managed-identity)
+- [DefaultAzureCredential Best Practices](https://learn.microsoft.com/python/api/overview/azure/identity-readme)
+- [Cosmos DB Authentication Migration Guide](/backend/COSMOS_AUTH_MIGRATION.md)
+- [Infrastructure RBAC Migration Summary](/infra/RBAC_MIGRATION_COMPLETE.md)
+
 ---
 
 **Key Takeaways**:
+- **Managed Identity eliminates secret management** for Azure service-to-service authentication
 - Automated pipelines reduce manual errors and increase deployment frequency
 - Environment protection rules provide necessary governance and safety
 - Monitoring and observability are essential for production deployments
 - Rollback capabilities are critical for maintaining system reliability
 - Security scanning should be integrated throughout the pipeline
+- **RBAC provides fine-grained access control** without exposing master keys
