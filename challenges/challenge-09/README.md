@@ -224,11 +224,21 @@ jobs:
         run: |
           COSMOS_ACCOUNT=$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
           COSMOS_ENDPOINT=$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --query documentEndpoint -o tsv)
-          COSMOS_KEY=$(az cosmosdb keys list --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --type keys --query primaryMasterKey -o tsv)
 
           echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
-          echo "::add-mask::$COSMOS_KEY"
-          echo "key=$COSMOS_KEY" >> "$GITHUB_OUTPUT"
+          echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Get Container App managed identity
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'pet-service')].name" -o tsv)
+          
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Container App
         run: |
@@ -239,13 +249,10 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_LOGIN_SERVER/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --set-env-vars \
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
               COSMOS_ENDPOINT=${{ steps.cosmos.outputs.endpoint }} \
               COSMOS_DATABASE_NAME=${{ env.COSMOS_DATABASE_NAME }} \
-              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }} \
-            --secrets \
-              cosmos-key=${{ steps.cosmos.outputs.key }} \
-            --replace-env-vars \
-              COSMOS_KEY=secretref:cosmos-key
+              COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }}
 ```
 
 **Required GitHub Secrets:**
@@ -374,6 +381,18 @@ jobs:
           echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
           echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
 
+      - name: Get Container App managed identity
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv)
+          
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to Container App
         run: |
           APP_NAME=$(az containerapp list --resource-group "$RESOURCE_GROUP" --query "[?contains(name, 'activity-service')].name" -o tsv)
@@ -386,6 +405,7 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --image "$ACR_LOGIN_SERVER/${{ env.SERVICE_NAME }}:${{ github.sha }}" \
             --set-env-vars \
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
               COSMOS_ENDPOINT="${{ steps.cosmos.outputs.endpoint }}" \
               COSMOS_DATABASE_NAME="${{ env.COSMOS_DATABASE_NAME }}" \
               COSMOS_CONTAINER_NAME="${{ env.COSMOS_CONTAINER_NAME }}"
@@ -426,8 +446,9 @@ Same structure as Activity Service, but change:
 - `COSMOS_DATABASE_NAME: accessoryservice`
 - `COSMOS_CONTAINER_NAME: accessories`
 - App name query: `[?contains(name, 'accessory-service')]`
+- **Important**: Add the same managed identity retrieval step to get AZURE_CLIENT_ID
 
-> **Security Note**: All backend services authenticate to Cosmos DB using their **user-assigned managed identities** with RBAC. The infrastructure grants each Container App's managed identity the **Cosmos DB Data Contributor** role (`00000000-0000-0000-0000-000000000002`). This eliminates the need to manage and rotate Cosmos DB master keys in secrets.
+> **Security Note**: All backend services authenticate to Cosmos DB using their **user-assigned managed identities** with RBAC. The infrastructure grants each Container App's managed identity the **Cosmos DB Data Contributor** role (`00000000-0000-0000-0000-000000000002`) for data operations and **DocumentDB Account Contributor** role (`5bd9cd88-fe45-4216-938b-f97437e15450`) for database/container creation. This eliminates the need to manage and rotate Cosmos DB master keys in secrets.
 
 **Pro Tip**: Use GitHub Copilot to generate:
 ```
@@ -471,11 +492,12 @@ The frontend requires backend service URLs as environment variables:
 **📝 Task 2 Deliverables:**
 - [ ] All services have Dockerfiles (verify existing, create if missing)
 - [ ] GitHub Actions workflows for all four services (pet, activity, accessory, frontend)
-- [ ] All workflows include proper Cosmos DB environment variables (endpoint, database, container)
+- [ ] All workflows include proper Cosmos DB environment variables (AZURE_CLIENT_ID, endpoint, database, container)
+  - [ ] Verify workflows dynamically retrieve managed identity client ID
   - [ ] Verify NO `COSMOS_KEY` secrets are configured (using Managed Identity instead)
 - [ ] All workflows successfully deploy on push to main
 - [ ] All services accessible and functional
-- [ ] Verify Managed Identity authentication to Cosmos DB is working
+- [ ] Verify Managed Identity authentication to Cosmos DB is working (check health endpoints)
 - [ ] Frontend connects to all backend services correctly
 
 ---

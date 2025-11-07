@@ -151,6 +151,33 @@ infra/
      }
    }
 
+   // Reference Cosmos DB account
+   resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' existing = {
+     name: cosmosAccountName
+   }
+
+   // Grant Cosmos DB Data Contributor role (data plane operations)
+   resource cosmosDataContributorRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2023-04-15' = {
+     name: guid(cosmosAccount.id, serviceIdentity.id, cosmosDataContributorRoleId)
+     parent: cosmosAccount
+     properties: {
+       principalId: serviceIdentity.properties.principalId
+       roleDefinitionId: '${cosmosAccount.id}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+       scope: cosmosAccount.id
+     }
+   }
+
+   // Grant DocumentDB Account Contributor role (ARM-level: database/container creation)
+   resource cosmosAccountContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+     name: guid(cosmosAccount.id, serviceIdentity.id, 'documentdb-contributor')
+     scope: cosmosAccount
+     properties: {
+       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5bd9cd88-fe45-4216-938b-f97437e15450')
+       principalId: serviceIdentity.properties.principalId
+       principalType: 'ServicePrincipal'
+     }
+   }
+
    // Configure Container App with identity and registry
    resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
      identity: {
@@ -168,14 +195,33 @@ infra/
            }
          ]
        }
+       template: {
+         containers: [
+           {
+             name: containerName
+             env: [
+               {
+                 name: 'AZURE_CLIENT_ID'
+                 value: serviceIdentity.properties.clientId  // Required for DefaultAzureCredential
+               }
+               {
+                 name: 'COSMOS_ENDPOINT'
+                 value: cosmosEndpoint
+               }
+               // ... other env vars
+             ]
+           }
+         ]
+       }
      }
    }
    ```
 
 2. **Secrets Management**:
-   - Cosmos DB keys stored as Container App secrets
-   - Secrets referenced via `secretRef` in environment variables
-   - Never exposed in logs or outputs (marked with `@secure()`)
+   - **Cosmos DB access uses managed identity with RBAC** (no master keys in Container Apps)
+   - Secrets only used during local development (stored in .env files)
+   - Never exposed in logs or outputs (marked with `@secure()` in Bicep)
+   - Environment variable `AZURE_CLIENT_ID` set to enable DefaultAzureCredential
 
 3. **Network Security**:
    - HTTPS-only ingress configuration
@@ -218,12 +264,18 @@ infra/
    ```bicep
    - User-assigned managed identity per service
    - AcrPull role assignment on ACR (scoped to registry)
+   - Cosmos DB Data Contributor role (00000000-0000-0000-0000-000000000002) - for data operations
+   - DocumentDB Account Contributor role (5bd9cd88-fe45-4216-938b-f97437e15450) - for database/container creation
    - Registry configuration with managed identity authentication
    - 0.5 CPU, 1GB memory per replica
    - Auto-scale: 1-10 replicas
    - HTTP scaling based on 10 concurrent requests
-   - Environment variables for Cosmos DB connection
-   - Secrets for Cosmos DB keys
+   - Environment variables:
+     - AZURE_CLIENT_ID (managed identity client ID)
+     - COSMOS_ENDPOINT
+     - COSMOS_DATABASE_NAME
+     - COSMOS_CONTAINER_NAME
+   - No secrets needed for Cosmos DB authentication
    ```
 
 5. **Frontend** (`container-app.frontend.bicep`):
@@ -244,10 +296,11 @@ The ACR module (`acr.bicep`) creates:
 - Outputs for loginServer, name, and id
 
 **Backend Services Environment:**
+- `AZURE_CLIENT_ID`: Client ID of the service's user-assigned managed identity (required for DefaultAzureCredential)
 - `COSMOS_ENDPOINT`: Cosmos DB endpoint URL
-- `COSMOS_KEY`: Primary key (stored as secret)
 - `COSMOS_DATABASE_NAME`: Service-specific database name
 - `COSMOS_CONTAINER_NAME`: Service-specific container name
+- **Note**: `COSMOS_KEY` is NOT used - services authenticate via managed identity with RBAC
 
 **Frontend Environment:**
 - `VITE_API_PETS_URL`: Pet service FQDN (HTTPS)
@@ -460,32 +513,49 @@ az group delete --name petpal-rg --yes --no-wait
 **Solution**: Each backend service has its own managed identity with AcrPull role; no admin credentials needed
 
 ### Pitfall 2: Missing Managed Identity Configuration
-**Problem**: Container Apps can't pull images from ACR due to authentication failure
-**Solution**: Create user-assigned managed identity, grant AcrPull, configure registry authentication in Container App
+**Problem**: Container Apps can't pull images from ACR or access Cosmos DB due to authentication failure
+**Solution**: 
+- Create user-assigned managed identity for each service
+- Grant AcrPull role on ACR
+- Grant Cosmos DB Data Contributor + DocumentDB Account Contributor roles on Cosmos DB
+- Configure registry authentication in Container App
+- Set AZURE_CLIENT_ID environment variable in Container App
 
-### Pitfall 3: Missing Secrets Configuration
-**Problem**: Cosmos key not added to secrets section
-**Solution**: Each backend service includes secrets configuration with cosmos-key
+### Pitfall 3: Missing Environment Variable for Managed Identity
+**Problem**: DefaultAzureCredential fails with "Unable to load the proper Managed Identity" error
+**Solution**: Set AZURE_CLIENT_ID environment variable to the managed identity's client ID in Container App configuration
 
-### Pitfall 4: Incorrect Environment Variable References
-**Problem**: Using `value` instead of `secretRef` for secrets
-**Solution**: Secrets use `secretRef`, non-sensitive values use `value`
+### Pitfall 4: Insufficient Cosmos DB Permissions
+**Problem**: Services can read/write data but fail when creating databases or containers
+**Solution**: Grant both Cosmos DB Data Contributor (data plane) AND DocumentDB Account Contributor (ARM level) roles
 
-### Pitfall 5: Port Mismatch
+### Pitfall 5: Incorrect Environment Variable References
+**Problem**: Application fails to authenticate to Cosmos DB
+**Solution**: 
+- Ensure AZURE_CLIENT_ID is set to managed identity client ID
+- Ensure COSMOS_ENDPOINT is the Cosmos DB endpoint URL
+- Verify application code uses DefaultAzureCredential() for authentication
+- No secretRef needed for Cosmos DB - managed identity handles authentication
+
+### Pitfall 6: Port Mismatch
 **Problem**: Container App targetPort doesn't match service port
 **Solution**: Verified ports: Pet (8010), Activity (8020), Accessory (8030), Frontend (80)
 
-### Pitfall 6: Missing Dependencies
+### Pitfall 7: Missing Dependencies
 **Problem**: Services deployed before Cosmos DB ready
 **Solution**: Used module outputs to create implicit dependencies
 
-### Pitfall 7: Hardcoded Secrets in Outputs
+### Pitfall 8: Hardcoded Secrets in Outputs
 **Problem**: Bicep warning about secrets in outputs
-**Solution**: Outputs expose endpoints, not keys. Keys passed securely to services only.
+**Solution**: Outputs expose endpoints, not keys. Keys passed securely to services only. With managed identity, no keys needed at all.
 
-### Pitfall 8: Role Assignment Scope Issues
+### Pitfall 9: Role Assignment Scope Issues
 **Problem**: AcrPull role assigned at resource group level instead of ACR resource
 **Solution**: Use `scope: acr` in role assignment to grant permissions on specific ACR resource
+
+### Pitfall 10: RBAC Propagation Delay
+**Problem**: Container Apps fail to authenticate to Cosmos DB immediately after deployment
+**Solution**: Wait 5-10 minutes for RBAC role assignments to propagate across Azure AD. Consider adding retry logic in application startup.
 
 ## Success Validation
 

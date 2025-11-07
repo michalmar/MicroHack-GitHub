@@ -83,17 +83,21 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      - Activity Service (port 8020)
      - Accessory Service (port 8030)
    - For each service, configure:
-     - User-assigned managed identity for ACR image pull
+     - User-assigned managed identity for ACR image pull and Cosmos DB access
      - `AcrPull` role assignment scoped to the ACR
      - Registry configuration with managed identity authentication
      - Environment variables:
+       - `AZURE_CLIENT_ID` - Client ID of the user-assigned managed identity (required for DefaultAzureCredential)
        - `COSMOS_ENDPOINT`
-       - `COSMOS_KEY`
        - `COSMOS_DATABASE_NAME`
        - `COSMOS_CONTAINER_NAME`
+     - RBAC role assignments:
+       - `Cosmos DB Data Contributor` (00000000-0000-0000-0000-000000000002) - for data plane operations
+       - `DocumentDB Account Contributor` (5bd9cd88-fe45-4216-938b-f97437e15450) - for database/container creation
    - Enable external ingress for each service
    - Configure resource allocation (CPU, memory)
    - Note: Each service gets its own managed identity for security isolation
+   - **Important**: Services authenticate to Cosmos DB using managed identity with RBAC (no master keys needed)
 
 3. **Deploy Frontend**:
    - Create Container App for frontend (port 80)
@@ -218,11 +222,13 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 - [ ] Azure Container Registry (ACR) created and accessible
 - [ ] User-assigned managed identities created for each backend service (3 total)
 - [ ] Each service identity has `AcrPull` role assigned on ACR
+- [ ] Each service identity has `Cosmos DB Data Contributor` + `DocumentDB Account Contributor` roles for Cosmos DB
+- [ ] Container Apps configured with `AZURE_CLIENT_ID` environment variable
 - [ ] Container Apps configured with registry authentication using managed identities
-- [ ] All services have correct environment variables configured
+- [ ] All services have correct environment variables configured (no `COSMOS_KEY` needed)
 - [ ] Services accessible via HTTPS endpoints
 - [ ] Frontend connects to backend APIs successfully
-- [ ] Data persists in Cosmos DB
+- [ ] Data persists in Cosmos DB via managed identity authentication
 - [ ] GitHub federated managed identity created with required role assignments (`Contributor` + `AcrPush`)
 - [ ] Managed identity outputs captured for Challenge 09 workflows
 - [ ] Deployment can be repeated reliably (infrastructure as code)

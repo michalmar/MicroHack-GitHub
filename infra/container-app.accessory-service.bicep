@@ -58,7 +58,12 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
-// Grant Cosmos DB Data Contributor role to the managed identity
+// Reference to Cosmos DB account for role assignment
+resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existing = {
+  name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
+}
+
+// Grant Cosmos DB Data Contributor role to the managed identity (for data plane operations)
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, accessoryServiceIdentity.id, 'cosmos-data-contributor')
   parent: cosmosAccount
@@ -69,9 +74,19 @@ resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssi
   }
 }
 
-// Reference to Cosmos DB account for role assignment
-resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existing = {
-  name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
+// Grant DocumentDB Account Contributor role to the managed identity (for database/container creation)
+// This is needed for create_database_if_not_exists() and create_container_if_not_exists()
+resource cosmosContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cosmosAccountId, accessoryServiceIdentity.id, 'documentdb-contributor')
+  scope: cosmosAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '5bd9cd88-fe45-4216-938b-f97437e15450'
+    ) // DocumentDB Account Contributor role
+    principalId: accessoryServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource accessoryServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
@@ -112,6 +127,10 @@ resource accessoryServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
             memory: '1Gi'
           }
           env: [
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: accessoryServiceIdentity.properties.clientId
+            }
             {
               name: 'COSMOS_ENDPOINT'
               value: cosmosEndpoint

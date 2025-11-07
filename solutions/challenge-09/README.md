@@ -194,17 +194,40 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
+      - name: Get managed identity
+        if: needs.changes.outputs[matrix.service] == 'true'
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[?contains(name, '${{ matrix.service }}-staging')].name" -o tsv)
+          
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to staging
         if: needs.changes.outputs[matrix.service] == 'true'
         run: |
           SERVICE_NAME=${{ matrix.service }}
           IMAGE_TAG="${{ env.REGISTRY }}.azurecr.io/${SERVICE_NAME}:${{ github.sha }}"
           
+          # Get Cosmos DB endpoint
+          COSMOS_ENDPOINT=$(az cosmosdb list \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[0].documentEndpoint" -o tsv)
+          
           az containerapp update \
             --name ${SERVICE_NAME}-staging \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${IMAGE_TAG} \
-            --revision-suffix ${{ github.run_number }}
+            --revision-suffix ${{ github.run_number }} \
+            --set-env-vars \
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
+              COSMOS_ENDPOINT="$COSMOS_ENDPOINT"
       
       - name: Run health check
         if: needs.changes.outputs[matrix.service] == 'true'
@@ -241,18 +264,41 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
+      - name: Get managed identity
+        if: needs.changes.outputs[matrix.service] == 'true'
+        id: identity
+        run: |
+          APP_NAME=$(az containerapp list \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[?contains(name, '${{ matrix.service }}')].name" -o tsv | head -1)
+          
+          IDENTITY_CLIENT_ID=$(az containerapp show \
+            --name "$APP_NAME" \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "identity.userAssignedIdentities" -o json | jq -r 'to_entries[0].value.clientId')
+          
+          echo "client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
+
       - name: Blue-Green Deployment
         if: needs.changes.outputs[matrix.service] == 'true'
         run: |
           SERVICE_NAME=${{ matrix.service }}
           IMAGE_TAG="${{ env.REGISTRY }}.azurecr.io/${SERVICE_NAME}:${{ github.sha }}"
           
+          # Get Cosmos DB endpoint
+          COSMOS_ENDPOINT=$(az cosmosdb list \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[0].documentEndpoint" -o tsv)
+          
           # Create new revision (green)
           az containerapp update \
             --name ${SERVICE_NAME} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${IMAGE_TAG} \
-            --revision-suffix green-${{ github.run_number }}
+            --revision-suffix green-${{ github.run_number }} \
+            --set-env-vars \
+              AZURE_CLIENT_ID="${{ steps.identity.outputs.client_id }}" \
+              COSMOS_ENDPOINT="$COSMOS_ENDPOINT"
           
           # Health check on new revision
           sleep 60
@@ -676,15 +722,28 @@ az containerapp show \
   --resource-group $RESOURCE_GROUP \
   --query "identity.userAssignedIdentities" -o json
 
+# Check AZURE_CLIENT_ID environment variable is set
+az containerapp show \
+  --name petpal-pet-service \
+  --resource-group $RESOURCE_GROUP \
+  --query "properties.template.containers[0].env[?name=='AZURE_CLIENT_ID']" -o json
+
 # Verify Cosmos DB RBAC role assignments
 COSMOS_ACCOUNT_ID=$(az cosmosdb show \
   --name $COSMOS_ACCOUNT_NAME \
   --resource-group $RESOURCE_GROUP \
   --query id -o tsv)
 
+# Check data plane role (Cosmos DB Data Contributor)
+az cosmosdb sql role assignment list \
+  --account-name $COSMOS_ACCOUNT_NAME \
+  --resource-group $RESOURCE_GROUP \
+  -o table
+
+# Check ARM level role (DocumentDB Account Contributor)
 az role assignment list \
   --scope $COSMOS_ACCOUNT_ID \
-  --query "[?roleDefinitionName=='Cosmos DB Built-in Data Contributor'].{Principal:principalId,Role:roleDefinitionName}" \
+  --query "[?roleDefinitionName=='DocumentDB Account Contributor'].{Principal:principalId,Role:roleDefinitionName}" \
   -o table
 ```
 
@@ -728,12 +787,17 @@ customEvents
 **Symptoms:**
 - Health check returns 503 or authentication errors
 - Logs show "Unauthorized" or "Forbidden" errors accessing Cosmos DB
+- Error: "Unable to load the proper Managed Identity"
 
 **Solutions:**
-- Verify RBAC role assignment exists: `az role assignment list --scope $COSMOS_ACCOUNT_ID`
+- **Verify AZURE_CLIENT_ID is set**: Check Container App environment variables include `AZURE_CLIENT_ID`
+- **Verify RBAC role assignments exist**: 
+  - Data plane: `az cosmosdb sql role assignment list`
+  - ARM level: `az role assignment list --scope $COSMOS_ACCOUNT_ID`
 - Wait 5-10 minutes for role propagation after infrastructure deployment
 - Check Container App has user-assigned managed identity configured
 - Verify backend code uses `DefaultAzureCredential()` when not on localhost
+- Ensure workflows dynamically retrieve and set AZURE_CLIENT_ID during deployment
 - Check Application Insights for detailed error messages
 
 ### Issue 2: Long Build Times
