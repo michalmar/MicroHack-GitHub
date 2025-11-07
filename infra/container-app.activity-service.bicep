@@ -19,13 +19,16 @@ param cosmosEndpoint string
 param cosmosAccountId string
 
 @description('Cosmos DB Data Contributor role definition ID')
-param cosmosDataContributorRoleId string
+param cosmosDataContributorRoleId string = ''
 
 @description('Cosmos DB database name')
 param cosmosDatabaseName string = 'activityservice'
 
 @description('Cosmos DB container name')
 param cosmosContainerName string = 'activities'
+
+@description('Whether to pre-provision the Cosmos SQL database and container (avoids needing sqlDatabases/write at runtime).')
+param provisionCosmosResources bool = true
 
 @description('Azure Container Registry name')
 param acrName string = ''
@@ -64,28 +67,59 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existi
 }
 
 // Grant Cosmos DB Data Contributor role to the managed identity (for data plane operations)
+var useCustomDataPlaneRole = empty(cosmosDataContributorRoleId)
+var cosmosDataPlaneRoleDefinitionId = useCustomDataPlaneRole
+  ? cosmosCustomDataPlaneRoleDefinition.id
+  : '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+
+resource cosmosCustomDataPlaneRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2025-04-15' = if (useCustomDataPlaneRole) {
+  name: guid(cosmosAccount.id, '${name}-data-role')
+  parent: cosmosAccount
+  properties: {
+    roleName: '${name}-data-role'
+    type: 'CustomRole'
+    assignableScopes: [ cosmosAccount.id ]
+    permissions: [
+      {
+        dataActions: [
+          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
+        ]
+      }
+    ]
+  }
+}
+
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, activityServiceIdentity.id, 'cosmos-data-contributor')
   parent: cosmosAccount
   properties: {
-    roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
+    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
     principalId: activityServiceIdentity.properties.principalId
     scope: cosmosAccountId
   }
 }
 
-// Grant DocumentDB Account Contributor role to the managed identity (for database/container creation)
-// This is needed for create_database_if_not_exists() and create_container_if_not_exists()
-resource cosmosContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(cosmosAccountId, activityServiceIdentity.id, 'documentdb-contributor')
-  scope: cosmosAccount
+resource activityDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-04-15' = if (provisionCosmosResources) {
+  name: cosmosDatabaseName
+  parent: cosmosAccount
   properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '5bd9cd88-fe45-4216-938b-f97437e15450'
-    ) // DocumentDB Account Contributor role
-    principalId: activityServiceIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+    resource: { id: cosmosDatabaseName }
+    options: {}
+  }
+}
+
+resource activityContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = if (provisionCosmosResources) {
+  name: cosmosContainerName
+  parent: activityDatabase
+  properties: {
+    resource: {
+      id: cosmosContainerName
+      partitionKey: { paths: [ '/id' ], kind: 'Hash' }
+    }
+    options: {}
   }
 }
 
@@ -171,3 +205,5 @@ output name string = activityServiceApp.name
 output id string = activityServiceApp.id
 output identityPrincipalId string = activityServiceIdentity.properties.principalId
 output identityClientId string = activityServiceIdentity.properties.clientId
+output dataPlaneRoleDefinitionId string = cosmosDataPlaneRoleDefinitionId
+output databaseProvisioned bool = provisionCosmosResources
