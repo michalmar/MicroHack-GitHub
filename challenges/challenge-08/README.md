@@ -82,13 +82,18 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      - Pet Service (port 8010)
      - Activity Service (port 8020)
      - Accessory Service (port 8030)
-   - Configure environment variables for each service:
-     - `COSMOS_ENDPOINT`
-     - `COSMOS_KEY`
-     - `COSMOS_DATABASE_NAME`
-     - `COSMOS_CONTAINER_NAME`
+   - For each service, configure:
+     - User-assigned managed identity for ACR image pull
+     - `AcrPull` role assignment scoped to the ACR
+     - Registry configuration with managed identity authentication
+     - Environment variables:
+       - `COSMOS_ENDPOINT`
+       - `COSMOS_KEY`
+       - `COSMOS_DATABASE_NAME`
+       - `COSMOS_CONTAINER_NAME`
    - Enable external ingress for each service
    - Configure resource allocation (CPU, memory)
+   - Note: Each service gets its own managed identity for security isolation
 
 3. **Deploy Frontend**:
    - Create Container App for frontend (port 80)
@@ -117,10 +122,17 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 
 3. **Azure Container Registry Setup**:
    - Provision Azure Container Registry (ACR) with Basic SKU
-  - Disable the admin user so no username/password secrets are created
-  - Configure ACR to be in same resource group as Container Apps
-  - Output the ACR login server and resource ID (credentials are supplied later via managed identity)
-  - Grant your GitHub managed identity the `AcrPush` role for image publishing
+   - Disable the admin user so no username/password secrets are created
+   - Configure ACR to be in same resource group as Container Apps
+   - Output the ACR login server and resource ID (credentials are supplied later via managed identity)
+   - Grant your GitHub managed identity the `AcrPush` role for image publishing
+
+4. **Container App Managed Identities for ACR Pull**:
+   - Create a user-assigned managed identity for **each backend service** (pet, activity, accessory)
+   - Grant each identity the `AcrPull` role on the ACR
+   - Configure each Container App to use its managed identity for pulling images from ACR
+   - Add registry configuration to each Container App with managed identity authentication
+   - This follows least privilege principle - each service has its own isolated identity
 
 ### Task 5: Deployment and Testing
 
@@ -204,11 +216,14 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 - [ ] Four Container Apps deployed (pet, activity, accessory, frontend)
 - [ ] Azure Cosmos DB provisioned with serverless capability
 - [ ] Azure Container Registry (ACR) created and accessible
+- [ ] User-assigned managed identities created for each backend service (3 total)
+- [ ] Each service identity has `AcrPull` role assigned on ACR
+- [ ] Container Apps configured with registry authentication using managed identities
 - [ ] All services have correct environment variables configured
 - [ ] Services accessible via HTTPS endpoints
 - [ ] Frontend connects to backend APIs successfully
 - [ ] Data persists in Cosmos DB
-- [ ] GitHub federated managed identity created with required role assignments
+- [ ] GitHub federated managed identity created with required role assignments (`Contributor` + `AcrPush`)
 - [ ] Managed identity outputs captured for Challenge 09 workflows
 - [ ] Deployment can be repeated reliably (infrastructure as code)
 

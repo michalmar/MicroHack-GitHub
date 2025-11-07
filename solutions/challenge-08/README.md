@@ -10,7 +10,8 @@ The solution implements a production-ready infrastructure that includes:
 - **Azure Cosmos DB** (serverless) for data persistence
 - **Azure Container Registry** (ACR) for Docker image storage
 - **Four Container Apps**: Pet Service, Activity Service, Accessory Service, and Frontend
-- **Security best practices**: Secrets management, HTTPS-only, managed identities ready
+- **User-Assigned Managed Identities**: One per backend service for secure ACR image pull
+- **Security best practices**: No admin credentials, managed identity authentication, secrets management, HTTPS-only
 - **Auto-scaling configuration** for all services
 - **Modular Bicep templates** for maintainability and reusability
 
@@ -19,28 +20,35 @@ The solution implements a production-ready infrastructure that includes:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │              Azure Container Apps Environment               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Pet Service  │  │Activity Svc  │  │Accessory Svc │       │
-│  │   (8010)     │  │   (8020)     │  │   (8030)     │       │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
-│         │                 │                 │               │
-│         └─────────────────┴─────────────────┘               │
-│                           │                                 │
-│                    ┌──────▼───────┐                         │
-│                    │   Cosmos DB  │                         │
-│                    │  (Serverless)│                         │
-│                    └──────────────┘                         │
 │                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │           Frontend (React UI)                        │   │
-│  │              Port 80                                 │   │
-│  └──────────────────────────────────────────────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ Pet Service  │  │Activity Svc  │  │Accessory Svc │      │
+│  │   (8010)     │  │   (8020)     │  │   (8030)     │      │
+│  │              │  │              │  │              │      │
+│  │  [MI-Pet]    │  │ [MI-Activity]│  │[MI-Accessory]│      │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
+│         │                 │                 │              │
+│         └────────┬────────┴────────┬────────┘              │
+│                  │                 │                       │
+│           ┌──────▼─────────────────▼──────┐                │
+│           │  Azure Container Registry     │                │
+│           │  (AcrPull via Managed IDs)    │                │
+│           └───────────────────────────────┘                │
+│                                                             │
+│         ┌─────────────────┴─────────────────┐              │
+│         │                                   │              │
+│  ┌──────▼───────┐                    ┌──────▼───────┐      │
+│  │   Cosmos DB  │                    │   Frontend   │      │
+│  │  (Serverless)│                    │   (Port 80)  │      │
+│  └──────────────┘                    └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
                            │
                     ┌──────▼───────┐
                     │Log Analytics │
                     │  Workspace   │
                     └──────────────┘
+
+Legend: [MI-*] = User-Assigned Managed Identity for ACR Pull
 ```
 
 ## Solution Structure
@@ -86,9 +94,15 @@ infra/
    - Secure Docker image storage
    - Geo-replication capabilities (for production)
    - Built-in vulnerability scanning (with Defender for Cloud)
-  - Workload identity federation support for GitHub Actions (no admin credentials)
+   - Managed identity support for credential-free image pull
+   - Workload identity federation support for GitHub Actions (no admin credentials)
 
-4. **Modular Architecture**:
+4. **Managed Identity Architecture**:
+   - **Separation of concerns**: Each backend service has its own user-assigned managed identity
+   - **Least privilege**: Each identity only has `AcrPull` permission scoped to ACR
+   - **Security isolation**: Compromised identity doesn't affect other services
+   - **Independent lifecycle**: Services can be deployed/deleted without affecting others
+   - **Best practice alignment**: Follows Azure Well-Architected Framework security principles
    - Separate Bicep modules for each component
    - Reusable templates for services
    - Clear separation of concerns
@@ -98,17 +112,77 @@ infra/
 
 **Security Implementation:**
 
-1. **Secrets Management**:
+1. **Managed Identity for ACR Authentication**:
+   - Each backend service (pet, activity, accessory) has a dedicated user-assigned managed identity
+   - Each identity is granted `AcrPull` role scoped to the Azure Container Registry
+   - Container Apps configured to use managed identity for image pull authentication
+   - No admin credentials or passwords required
+   - Follows principle of least privilege and security isolation
+
+**Rationale for Separate Identities:**
+   - **Least Privilege**: Each service gets only what it needs
+   - **Blast Radius Reduction**: Compromised identity doesn't affect other services
+   - **Independent Lifecycle**: Services can be deployed/deleted independently
+   - **Audit Trail**: Clear 1:1 mapping between identity and service
+   - **Microservices Alignment**: Each autonomous service manages its own identity
+   - **Future Flexibility**: Easy to add service-specific permissions (Key Vault, Storage, etc.)
+
+**Implementation Pattern (Per Service):**
+   ```bicep
+   // Create user-assigned managed identity
+   resource serviceIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+     name: '${name}-identity'
+     location: location
+   }
+
+   // Reference ACR
+   resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (acrName != '') {
+     name: acrName
+   }
+
+   // Grant AcrPull role (scoped to ACR, not resource group)
+   resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (acrName != '') {
+     name: guid(acr.id, serviceIdentity.id, 'acrpull')
+     scope: acr
+     properties: {
+       roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+       principalId: serviceIdentity.properties.principalId
+       principalType: 'ServicePrincipal'
+     }
+   }
+
+   // Configure Container App with identity and registry
+   resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
+     identity: {
+       type: 'UserAssigned'
+       userAssignedIdentities: {
+         '${serviceIdentity.id}': {}
+       }
+     }
+     properties: {
+       configuration: {
+         registries: [
+           {
+             server: acrLoginServer
+             identity: serviceIdentity.id  // Use managed identity for auth
+           }
+         ]
+       }
+     }
+   }
+   ```
+
+2. **Secrets Management**:
    - Cosmos DB keys stored as Container App secrets
    - Secrets referenced via `secretRef` in environment variables
    - Never exposed in logs or outputs (marked with `@secure()`)
 
-2. **Network Security**:
+3. **Network Security**:
    - HTTPS-only ingress configuration
    - Public network access (can be restricted to VNet)
    - Each service exposed on unique ports
 
-3. **GitHub Workload Identity**:
+4. **GitHub Workload Identity**:
   - User-assigned managed identity provisioned for GitHub Actions
   - Federated credentials trust `repo:michalmar/MicroHack-GitHub:ref:refs/heads/main`
   - RBAC grants `Contributor` on the resource group and `AcrPush` on the registry—no secrets needed
@@ -142,6 +216,9 @@ infra/
 
 4. **Backend Services** (pet, activity, accessory):
    ```bicep
+   - User-assigned managed identity per service
+   - AcrPull role assignment on ACR (scoped to registry)
+   - Registry configuration with managed identity authentication
    - 0.5 CPU, 1GB memory per replica
    - Auto-scale: 1-10 replicas
    - HTTP scaling based on 10 concurrent requests
@@ -345,18 +422,24 @@ az group delete --name petpal-rg --yes --no-wait
 
 ### 4. Azure Container Apps Best Practices
 - **Modular Templates**: Separate modules for different resource types
+- **Managed Identity per Service**: Each microservice has isolated security boundary
+- **AcrPull Role Scoping**: Roles scoped to specific resources, not resource group
 - **Parameterization**: Make templates flexible with parameters
 - **Secrets Management**: Never hardcode sensitive values
 - **Resource Dependencies**: Use module outputs for dependencies
 - **Naming Conventions**: Use consistent, descriptive names
+- **Registry Authentication**: Use managed identity instead of admin credentials
 
 ### 5. Security Principles Applied
-- **Least Privilege**: Services only access required resources
+- **Least Privilege**: Each service has only the permissions it needs (AcrPull for image pull)
+- **Identity Isolation**: Each microservice has its own managed identity
+- **No Shared Credentials**: Managed identities eliminate password sharing
 - **Secrets Protection**: Cosmos keys stored as secrets, not plain text
 - **HTTPS Enforcement**: All ingress configured for secure transport
 - **Network Isolation**: Services communicate within Container Apps environment
 - **Audit Ready**: All actions logged to Log Analytics
 - **Credential Security**: CI/CD uses federated managed identity instead of stored credentials
+- **Blast Radius Reduction**: Compromised identity only affects one service
 
 ### 6. Cosmos DB Serverless Advantages
 - **Cost-Effective**: Pay only for operations consumed
@@ -372,25 +455,37 @@ az group delete --name petpal-rg --yes --no-wait
 
 ## Common Pitfalls and Solutions
 
-### Pitfall 1: Missing Secrets Configuration
+### Pitfall 1: Using Shared Credentials for ACR
+**Problem**: Enabling admin user and sharing ACR credentials across services
+**Solution**: Each backend service has its own managed identity with AcrPull role; no admin credentials needed
+
+### Pitfall 2: Missing Managed Identity Configuration
+**Problem**: Container Apps can't pull images from ACR due to authentication failure
+**Solution**: Create user-assigned managed identity, grant AcrPull, configure registry authentication in Container App
+
+### Pitfall 3: Missing Secrets Configuration
 **Problem**: Cosmos key not added to secrets section
 **Solution**: Each backend service includes secrets configuration with cosmos-key
 
-### Pitfall 2: Incorrect Environment Variable References
+### Pitfall 4: Incorrect Environment Variable References
 **Problem**: Using `value` instead of `secretRef` for secrets
 **Solution**: Secrets use `secretRef`, non-sensitive values use `value`
 
-### Pitfall 3: Port Mismatch
+### Pitfall 5: Port Mismatch
 **Problem**: Container App targetPort doesn't match service port
 **Solution**: Verified ports: Pet (8010), Activity (8020), Accessory (8030), Frontend (80)
 
-### Pitfall 4: Missing Dependencies
+### Pitfall 6: Missing Dependencies
 **Problem**: Services deployed before Cosmos DB ready
 **Solution**: Used module outputs to create implicit dependencies
 
-### Pitfall 5: Hardcoded Secrets in Outputs
+### Pitfall 7: Hardcoded Secrets in Outputs
 **Problem**: Bicep warning about secrets in outputs
 **Solution**: Outputs expose endpoints, not keys. Keys passed securely to services only.
+
+### Pitfall 8: Role Assignment Scope Issues
+**Problem**: AcrPull role assigned at resource group level instead of ACR resource
+**Solution**: Use `scope: acr` in role assignment to grant permissions on specific ACR resource
 
 ## Success Validation
 
@@ -406,6 +501,16 @@ azd env get-value AZURE_RESOURCE_GROUP
 
 # Monitor deployment (if still in progress)
 azd monitor
+
+# Verify managed identities were created
+RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+az identity list --resource-group $RESOURCE_GROUP --query "[?contains(name, 'identity')].[name]" -o table
+
+# Verify AcrPull role assignments on ACR
+ACR_NAME=$(azd env get-value ACR_NAME)
+az role assignment list \
+  --scope $(az acr show -n $ACR_NAME --query id -o tsv) \
+  --query "[?roleDefinitionName=='AcrPull'].[principalId, scope]" -o table
 ```
 
 Final result should look like this:

@@ -25,18 +25,63 @@ param cosmosDatabaseName string = 'accessoryservice'
 @description('Cosmos DB container name')
 param cosmosContainerName string = 'accessories'
 
+@description('Azure Container Registry name')
+param acrName string = ''
+
+@description('Azure Container Registry login server')
+param acrLoginServer string = ''
+
+// Managed Identity for ACR Pull - separate identity per microservice
+resource accessoryServiceIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${name}-identity'
+  location: location
+}
+
+// Reference to ACR for role assignment
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (acrName != '') {
+  name: acrName
+}
+
+// Grant AcrPull role to the managed identity if ACR is specified
+resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (acrName != '') {
+  name: guid(acr.id, accessoryServiceIdentity.id, 'acrpull')
+  scope: acr
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+    ) // AcrPull role
+    principalId: accessoryServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource accessoryServiceApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: name
   location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${accessoryServiceIdentity.id}': {}
+    }
+  }
   properties: {
     environmentId: containerAppEnvironmentId
     configuration: {
       ingress: {
         external: true
-        targetPort: 80
+        targetPort: 8030
         transport: 'auto'
         allowInsecure: false
       }
+      registries: (acrLoginServer != '')
+        ? [
+            {
+              server: acrLoginServer
+              identity: accessoryServiceIdentity.id
+            }
+          ]
+        : []
       secrets: [
         {
           name: 'cosmos-key'

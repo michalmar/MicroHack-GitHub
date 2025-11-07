@@ -29,7 +29,7 @@ Opportunistic simplifications are encouraged. When you see a refactor beyond the
 ### 3.3 Experiments & Troubleshooting
 When investigating complex issues:
 1. Prefer quick inline or REPL tests first.
-2. Use PowerShell friendly commands (Windows dev baseline).
+2. Use bash friendly commands (Linux dev baseline).
 3. Load environment variables from `.env` when relevant.
 4. If a throwaway script is necessary, name it `adhoc_test_<purpose>.py` (see Section 7) and delete after insights are integrated.
 

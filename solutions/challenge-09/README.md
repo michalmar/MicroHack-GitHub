@@ -8,6 +8,27 @@ This challenge focuses on creating production-ready CI/CD pipelines that automat
 
 ## Solution Implementation
 
+### Quick Start: Test Your Deployment
+
+After deploying your services, validate the deployment health:
+
+**Linux/macOS:**
+```bash
+./test-deployment-health.sh -r "rg-petpal-dev"
+```
+
+**Windows PowerShell:**
+```powershell
+./test-deployment-health.ps1 -ResourceGroup "rg-petpal-dev"
+```
+
+**VS Code REST Client:**
+Open `test-deployment-health.http` and click "Send Request" on each test.
+
+📖 **See [TEST_DEPLOYMENT.md](./TEST_DEPLOYMENT.md) for complete testing documentation.**
+
+---
+
 ### Step 1: Basic CI/CD Pipeline Structure
 
 Create `.github/workflows/ci-cd.yml`:
