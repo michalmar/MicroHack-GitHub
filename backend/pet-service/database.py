@@ -202,7 +202,8 @@ class CosmosDBService:
     async def _database_seed(self) -> None:
         """Seed the existing CosmosDB container with sample pet data."""
         if self.container is None:
-            raise RuntimeError("Cosmos container is not initialized; cannot seed database")
+            raise RuntimeError(
+                "Cosmos container is not initialized; cannot seed database")
 
         logger.info("Seeding container with sample pet data")
         sample_pets = [
@@ -250,7 +251,8 @@ class CosmosDBService:
         for pet_data in sample_pets:
             try:
                 self.container.create_item(body=pet_data)
-                logger.info(f"Seeded pet: {pet_data['name']} ({pet_data['id']})")
+                logger.info(
+                    f"Seeded pet: {pet_data['name']} ({pet_data['id']})")
             except cosmos_exceptions.CosmosResourceExistsError:
                 logger.info(
                     f"Pet {pet_data['name']} ({pet_data['id']}) already exists, skipping")
@@ -291,7 +293,8 @@ class CosmosDBService:
             }
 
         except Exception as e:
-            logger.error(f"Failed to clean CosmosDB database '{database_id}': {e}")
+            logger.error(
+                f"Failed to clean CosmosDB database '{database_id}': {e}")
             return {
                 "status": "error",
                 "database": database_id,
