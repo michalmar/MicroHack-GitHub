@@ -112,7 +112,7 @@ async def health_check(db: CosmosDBService = Depends(get_db)):
         )
 
 
-@app.post("/clean", tags=["Maintenance"])
+@app.get("/clean", tags=["Maintenance"])
 async def clean_database(db: CosmosDBService = Depends(get_db)):
     """Delete the configured CosmosDB database and leave the service empty."""
     try:
