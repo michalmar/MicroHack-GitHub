@@ -28,15 +28,6 @@ param frontendImage string = 'ghcr.io/michalmar/petpal-ui:latest'
 @description('Toggle creation of the user-assigned managed identity for GitHub Actions federation')
 param enableGitHubManagedIdentity bool = true
 
-@description('Repository in owner/name format used when constructing GitHub federated credentials')
-@minLength(3)
-param githubRepository string = 'michalmar/MicroHack-GitHub'
-
-@description('Subjects for GitHub federated identity credentials (for example repo:owner/name:ref:refs/heads/main)')
-param githubFederatedSubjects array = [
-  'repo:${githubRepository}:ref:refs/heads/main'
-]
-
 // Variables
 var resourcePrefix = 'petpal-${environmentName}'
 var cosmosAccountName = '${resourcePrefix}-cosmos-${uniqueSuffix}'
@@ -81,7 +72,6 @@ module petService 'container-app.pet-service.bicep' = {
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
     cosmosAccountId: cosmosDb.outputs.accountId
-    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }
@@ -137,6 +127,12 @@ resource githubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities
   location: location
 }
 
+var githubManagedIdentityPrincipalId = enableGitHubManagedIdentity
+  ? githubManagedIdentity!.properties.principalId
+  : null
+var githubManagedIdentityClientId = enableGitHubManagedIdentity ? githubManagedIdentity!.properties.clientId : null
+var githubManagedIdentityResourceId = enableGitHubManagedIdentity ? githubManagedIdentity!.id : null
+
 // resource githubFederatedIdentityCredentials 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2025-01-31-preview' = [for subject in githubFederatedSubjects: if (enableGitHubManagedIdentity) {
 //   name: guid(githubManagedIdentity.id, subject)
 //   parent: githubManagedIdentity
@@ -157,7 +153,7 @@ resource githubIdentityContributorRole 'Microsoft.Authorization/roleAssignments@
       'Microsoft.Authorization/roleDefinitions',
       'b24988ac-6180-42a0-ab88-20f7382dd24c'
     )
-    principalId: githubManagedIdentity.properties.principalId
+    principalId: githubManagedIdentityPrincipalId!
     principalType: 'ServicePrincipal'
   }
 }
@@ -170,7 +166,7 @@ resource githubIdentityAcrPushRole 'Microsoft.Authorization/roleAssignments@2022
       'Microsoft.Authorization/roleDefinitions',
       '8311e382-0749-4cb8-b61a-304f252e45ec'
     )
-    principalId: githubManagedIdentity.properties.principalId
+    principalId: githubManagedIdentityPrincipalId!
     principalType: 'ServicePrincipal'
   }
 }
@@ -184,10 +180,12 @@ output petServiceUrl string = petService.outputs.fqdn
 output activityServiceUrl string = activityService.outputs.fqdn
 output accessoryServiceUrl string = accessoryService.outputs.fqdn
 output frontendUrl string = frontend.outputs.fqdn
-output githubManagedIdentityClientId string = enableGitHubManagedIdentity
-  ? githubManagedIdentity.properties.clientId
-  : ''
-output githubManagedIdentityPrincipalId string = enableGitHubManagedIdentity
-  ? githubManagedIdentity.properties.principalId
-  : ''
-output githubManagedIdentityResourceId string = enableGitHubManagedIdentity ? githubManagedIdentity.id : ''
+output githubManagedIdentityClientId string = githubManagedIdentityClientId == null
+  ? ''
+  : githubManagedIdentityClientId!
+output githubManagedIdentityPrincipalId string = githubManagedIdentityPrincipalId == null
+  ? ''
+  : githubManagedIdentityPrincipalId!
+output githubManagedIdentityResourceId string = githubManagedIdentityResourceId == null
+  ? ''
+  : githubManagedIdentityResourceId!

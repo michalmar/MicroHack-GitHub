@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.38.33.27573",
-      "templateHash": "14981285006208956862"
+      "templateHash": "1089525183970285312"
     }
   },
   "parameters": {
@@ -45,23 +45,6 @@
       "metadata": {
         "description": "Toggle creation of the user-assigned managed identity for GitHub Actions federation"
       }
-    },
-    "githubRepository": {
-      "type": "string",
-      "defaultValue": "michalmar/MicroHack-GitHub",
-      "minLength": 3,
-      "metadata": {
-        "description": "Repository in owner/name format used when constructing GitHub federated credentials"
-      }
-    },
-    "githubFederatedSubjects": {
-      "type": "array",
-      "defaultValue": [
-        "[format('repo:{0}:ref:refs/heads/main', parameters('githubRepository'))]"
-      ],
-      "metadata": {
-        "description": "Subjects for GitHub federated identity credentials (for example repo:owner/name:ref:refs/heads/main)"
-      }
     }
   },
   "variables": {
@@ -70,7 +53,8 @@
     "containerAppEnvName": "[format('{0}-env-{1}', variables('resourcePrefix'), parameters('uniqueSuffix'))]",
     "logAnalyticsName": "[format('{0}-logs-{1}', variables('resourcePrefix'), parameters('uniqueSuffix'))]",
     "acrName": "[replace(format('{0}acr{1}', variables('resourcePrefix'), parameters('uniqueSuffix')), '-', '')]",
-    "githubIdentityName": "[format('{0}-gha-mi-{1}', variables('resourcePrefix'), parameters('uniqueSuffix'))]"
+    "githubIdentityName": "[format('{0}-gha-mi-{1}', variables('resourcePrefix'), parameters('uniqueSuffix'))]",
+    "githubManagedIdentityResourceId": "[if(parameters('enableGitHubManagedIdentity'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), null())]"
   },
   "resources": [
     {
@@ -87,7 +71,7 @@
       "name": "[guid(subscription().subscriptionId, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), 'contributor')]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId]",
+        "principalId": "[if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId, null())]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
@@ -102,7 +86,7 @@
       "name": "[guid(subscription().subscriptionId, resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), 'acr-push')]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')]",
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId]",
+        "principalId": "[if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId, null())]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
@@ -246,7 +230,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "16348286360529560103"
+              "templateHash": "5665537002693255059"
             }
           },
           "parameters": {
@@ -317,10 +301,6 @@
             "endpoint": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('accountName')), '2025-04-15').documentEndpoint]"
-            },
-            "primaryKey": {
-              "type": "string",
-              "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('accountName')), '2025-04-15').primaryMasterKey]"
             },
             "accountName": {
               "type": "string",
@@ -463,9 +443,6 @@
           "cosmosAccountId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmosdb-deployment'), '2025-04-01').outputs.accountId.value]"
           },
-          "cosmosDataContributorRoleId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'cosmosdb-deployment'), '2025-04-01').outputs.dataContributorRoleId.value]"
-          },
           "acrName": {
             "value": "[variables('acrName')]"
           },
@@ -480,7 +457,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "11933079471563324337"
+              "templateHash": "14224913106017080808"
             }
           },
           "parameters": {
@@ -515,12 +492,6 @@
                 "description": "Cosmos DB account resource ID for RBAC role assignment"
               }
             },
-            "cosmosDataContributorRoleId": {
-              "type": "string",
-              "metadata": {
-                "description": "Cosmos DB Data Contributor role definition ID"
-              }
-            },
             "cosmosDatabaseName": {
               "type": "string",
               "defaultValue": "petservice",
@@ -533,6 +504,13 @@
               "defaultValue": "pets",
               "metadata": {
                 "description": "Cosmos DB container name"
+              }
+            },
+            "provisionCosmosResources": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether to pre-provision the Cosmos SQL database and container (avoids needing sqlDatabases/write at runtime)."
               }
             },
             "acrName": {
@@ -573,13 +551,60 @@
               ]
             },
             {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosDatabaseName')]"
+                },
+                "options": {}
+              }
+            },
+            {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}/{2}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'), parameters('cosmosContainerName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosContainerName')]",
+                  "partitionKey": {
+                    "paths": [
+                      "/id"
+                    ],
+                    "kind": "Hash"
+                  }
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]"
+              ]
+            },
+            {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
               "apiVersion": "2025-04-15",
               "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], guid(parameters('cosmosAccountId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'cosmos-data-contributor'))]",
               "properties": {
-                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/{1}', parameters('cosmosAccountId'), parameters('cosmosDataContributorRoleId'))]",
+                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', parameters('cosmosAccountId'))]",
                 "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').principalId]",
                 "scope": "[parameters('cosmosAccountId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.DocumentDB/databaseAccounts/{0}', split(parameters('cosmosAccountId'), '/')[8])]",
+              "name": "[guid(parameters('cosmosAccountId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'cosmos-control-plane')]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '230815da-be43-4aae-9cb4-875f7bd000aa')]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
@@ -617,6 +642,10 @@
                         "memory": "1Gi"
                       },
                       "env": [
+                        {
+                          "name": "AZURE_CLIENT_ID",
+                          "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+                        },
                         {
                           "name": "COSMOS_ENDPOINT",
                           "value": "[parameters('cosmosEndpoint')]"
@@ -673,6 +702,18 @@
             "identityClientId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+            },
+            "controlPlaneRoleDefinitionId": {
+              "type": "string",
+              "value": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '230815da-be43-4aae-9cb4-875f7bd000aa')]"
+            },
+            "dataPlaneRoleDefinitionId": {
+              "type": "string",
+              "value": "[format('{0}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002', parameters('cosmosAccountId'))]"
+            },
+            "databaseProvisioned": {
+              "type": "bool",
+              "value": "[parameters('provisionCosmosResources')]"
             }
           }
         }
@@ -725,7 +766,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "2329696255533224"
+              "templateHash": "2614676005195161653"
             }
           },
           "parameters": {
@@ -762,6 +803,7 @@
             },
             "cosmosDataContributorRoleId": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
                 "description": "Cosmos DB Data Contributor role definition ID"
               }
@@ -780,6 +822,13 @@
                 "description": "Cosmos DB container name"
               }
             },
+            "provisionCosmosResources": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether to pre-provision the Cosmos SQL database and container (avoids needing sqlDatabases/write at runtime)."
+              }
+            },
             "acrName": {
               "type": "string",
               "defaultValue": "",
@@ -794,6 +843,10 @@
                 "description": "Azure Container Registry login server"
               }
             }
+          },
+          "variables": {
+            "useCustomDataPlaneRole": "[empty(parameters('cosmosDataContributorRoleId'))]",
+            "cosmosDataPlaneRoleDefinitionId": "[if(variables('useCustomDataPlaneRole'), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name')))), format('{0}/sqlRoleDefinitions/{1}', parameters('cosmosAccountId'), parameters('cosmosDataContributorRoleId')))]"
           },
           "resources": [
             {
@@ -818,16 +871,73 @@
               ]
             },
             {
+              "condition": "[variables('useCustomDataPlaneRole')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name'))))]",
+              "properties": {
+                "roleName": "[format('{0}-data-role', parameters('name'))]",
+                "type": "CustomRole",
+                "assignableScopes": [
+                  "[resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8])]"
+                ],
+                "permissions": [
+                  {
+                    "dataActions": [
+                      "Microsoft.DocumentDB/databaseAccounts/readMetadata",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
               "apiVersion": "2025-04-15",
               "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], guid(parameters('cosmosAccountId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'cosmos-data-contributor'))]",
               "properties": {
-                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/{1}', parameters('cosmosAccountId'), parameters('cosmosDataContributorRoleId'))]",
+                "roleDefinitionId": "[variables('cosmosDataPlaneRoleDefinitionId')]",
                 "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').principalId]",
                 "scope": "[parameters('cosmosAccountId')]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]",
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name'))))]"
+              ]
+            },
+            {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosDatabaseName')]"
+                },
+                "options": {}
+              }
+            },
+            {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}/{2}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'), parameters('cosmosContainerName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosContainerName')]",
+                  "partitionKey": {
+                    "paths": [
+                      "/id"
+                    ],
+                    "kind": "Hash"
+                  }
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]"
               ]
             },
             {
@@ -862,6 +972,10 @@
                         "memory": "1Gi"
                       },
                       "env": [
+                        {
+                          "name": "AZURE_CLIENT_ID",
+                          "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+                        },
                         {
                           "name": "COSMOS_ENDPOINT",
                           "value": "[parameters('cosmosEndpoint')]"
@@ -918,6 +1032,14 @@
             "identityClientId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+            },
+            "dataPlaneRoleDefinitionId": {
+              "type": "string",
+              "value": "[variables('cosmosDataPlaneRoleDefinitionId')]"
+            },
+            "databaseProvisioned": {
+              "type": "bool",
+              "value": "[parameters('provisionCosmosResources')]"
             }
           }
         }
@@ -970,7 +1092,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.38.33.27573",
-              "templateHash": "10777304286219270728"
+              "templateHash": "9483352925343288240"
             }
           },
           "parameters": {
@@ -1007,6 +1129,7 @@
             },
             "cosmosDataContributorRoleId": {
               "type": "string",
+              "defaultValue": "",
               "metadata": {
                 "description": "Cosmos DB Data Contributor role definition ID"
               }
@@ -1025,6 +1148,13 @@
                 "description": "Cosmos DB container name"
               }
             },
+            "provisionCosmosResources": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Whether to pre-provision the Cosmos SQL database and container (avoids needing sqlDatabases/write at runtime)."
+              }
+            },
             "acrName": {
               "type": "string",
               "defaultValue": "",
@@ -1039,6 +1169,10 @@
                 "description": "Azure Container Registry login server"
               }
             }
+          },
+          "variables": {
+            "useCustomDataPlaneRole": "[empty(parameters('cosmosDataContributorRoleId'))]",
+            "cosmosDataPlaneRoleDefinitionId": "[if(variables('useCustomDataPlaneRole'), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name')))), format('{0}/sqlRoleDefinitions/{1}', parameters('cosmosAccountId'), parameters('cosmosDataContributorRoleId')))]"
           },
           "resources": [
             {
@@ -1063,16 +1197,73 @@
               ]
             },
             {
+              "condition": "[variables('useCustomDataPlaneRole')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name'))))]",
+              "properties": {
+                "roleName": "[format('{0}-data-role', parameters('name'))]",
+                "type": "CustomRole",
+                "assignableScopes": [
+                  "[resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8])]"
+                ],
+                "permissions": [
+                  {
+                    "dataActions": [
+                      "Microsoft.DocumentDB/databaseAccounts/readMetadata",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*",
+                      "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
               "apiVersion": "2025-04-15",
               "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], guid(parameters('cosmosAccountId'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'cosmos-data-contributor'))]",
               "properties": {
-                "roleDefinitionId": "[format('{0}/sqlRoleDefinitions/{1}', parameters('cosmosAccountId'), parameters('cosmosDataContributorRoleId'))]",
+                "roleDefinitionId": "[variables('cosmosDataPlaneRoleDefinitionId')]",
                 "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').principalId]",
                 "scope": "[parameters('cosmosAccountId')]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]",
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', split(parameters('cosmosAccountId'), '/')[8], guid(resourceId('Microsoft.DocumentDB/databaseAccounts', split(parameters('cosmosAccountId'), '/')[8]), format('{0}-data-role', parameters('name'))))]"
+              ]
+            },
+            {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosDatabaseName')]"
+                },
+                "options": {}
+              }
+            },
+            {
+              "condition": "[parameters('provisionCosmosResources')]",
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2025-04-15",
+              "name": "[format('{0}/{1}/{2}', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'), parameters('cosmosContainerName'))]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('cosmosContainerName')]",
+                  "partitionKey": {
+                    "paths": [
+                      "/id"
+                    ],
+                    "kind": "Hash"
+                  }
+                },
+                "options": {}
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', split(parameters('cosmosAccountId'), '/')[8], parameters('cosmosDatabaseName'))]"
               ]
             },
             {
@@ -1107,6 +1298,10 @@
                         "memory": "1Gi"
                       },
                       "env": [
+                        {
+                          "name": "AZURE_CLIENT_ID",
+                          "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+                        },
                         {
                           "name": "COSMOS_ENDPOINT",
                           "value": "[parameters('cosmosEndpoint')]"
@@ -1163,6 +1358,14 @@
             "identityClientId": {
               "type": "string",
               "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').clientId]"
+            },
+            "dataPlaneRoleDefinitionId": {
+              "type": "string",
+              "value": "[variables('cosmosDataPlaneRoleDefinitionId')]"
+            },
+            "databaseProvisioned": {
+              "type": "bool",
+              "value": "[parameters('provisionCosmosResources')]"
             }
           }
         }
@@ -1378,15 +1581,15 @@
     },
     "githubManagedIdentityClientId": {
       "type": "string",
-      "value": "[if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').clientId, '')]"
+      "value": "[if(equals(if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').clientId, null()), null()), '', if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').clientId, null()))]"
     },
     "githubManagedIdentityPrincipalId": {
       "type": "string",
-      "value": "[if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId, '')]"
+      "value": "[if(equals(if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId, null()), null()), '', if(parameters('enableGitHubManagedIdentity'), reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '2025-01-31-preview').principalId, null()))]"
     },
     "githubManagedIdentityResourceId": {
       "type": "string",
-      "value": "[if(parameters('enableGitHubManagedIdentity'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('githubIdentityName')), '')]"
+      "value": "[if(equals(variables('githubManagedIdentityResourceId'), null()), '', variables('githubManagedIdentityResourceId'))]"
     }
   }
 }

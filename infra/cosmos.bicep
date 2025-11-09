@@ -53,7 +53,7 @@ var cosmosDataContributorRoleId = '00000000-0000-0000-0000-000000000002'
 
 // Outputs
 output endpoint string = cosmosAccount.properties.documentEndpoint
-output primaryKey string = cosmosAccount.listKeys().primaryMasterKey
+// output primaryKey string = cosmosAccount.listKeys().primaryMasterKey
 output accountName string = cosmosAccount.name
 output accountId string = cosmosAccount.id
 output dataContributorRoleId string = cosmosDataContributorRoleId

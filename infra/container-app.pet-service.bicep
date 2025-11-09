@@ -98,7 +98,6 @@ resource petServiceContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases
   }
 }
 
-// Grant Cosmos DB data plane permissions to the managed identity
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, petServiceIdentity.id, 'cosmos-data-contributor')
   parent: cosmosAccount
