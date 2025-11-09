@@ -18,7 +18,7 @@ param cosmosEndpoint string
 @description('Cosmos DB account resource ID for RBAC role assignment')
 param cosmosAccountId string
 
-@description('Cosmos DB Data Contributor role definition ID')
+@description('Optional Cosmos DB Data Contributor role definition ID to override the default built-in role')
 param cosmosDataContributorRoleId string = ''
 
 @description('Cosmos DB database name')
@@ -66,31 +66,9 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existi
   name: split(cosmosAccountId, '/')[8] // Extract account name from resource ID
 }
 
-// Grant Cosmos DB Data Contributor role to the managed identity (for data plane operations)
-var useCustomDataPlaneRole = empty(cosmosDataContributorRoleId)
-var cosmosDataPlaneRoleDefinitionId = useCustomDataPlaneRole
-  ? cosmosCustomDataPlaneRoleDefinition.id
+var cosmosDataPlaneRoleDefinitionId = empty(cosmosDataContributorRoleId)
+  ? '${cosmosAccountId}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
   : '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
-
-resource cosmosCustomDataPlaneRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2025-04-15' = if (useCustomDataPlaneRole) {
-  name: guid(cosmosAccount.id, '${name}-data-role')
-  parent: cosmosAccount
-  properties: {
-    roleName: '${name}-data-role'
-    type: 'CustomRole'
-    assignableScopes: [cosmosAccount.id]
-    permissions: [
-      {
-        dataActions: [
-          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
-        ]
-      }
-    ]
-  }
-}
 
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, activityServiceIdentity.id, 'cosmos-data-contributor')
@@ -99,6 +77,20 @@ resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssi
     roleDefinitionId: cosmosDataPlaneRoleDefinitionId
     principalId: activityServiceIdentity.properties.principalId
     scope: cosmosAccountId
+  }
+}
+
+// Grant control plane access so the identity can manage Cosmos DB account resources when required
+resource cosmosControlPlaneRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(cosmosAccountId, activityServiceIdentity.id, 'cosmos-control-plane')
+  scope: cosmosAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '230815da-be43-4aae-9cb4-875f7bd000aa'
+    )
+    principalId: activityServiceIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -205,5 +197,9 @@ output name string = activityServiceApp.name
 output id string = activityServiceApp.id
 output identityPrincipalId string = activityServiceIdentity.properties.principalId
 output identityClientId string = activityServiceIdentity.properties.clientId
+output controlPlaneRoleDefinitionId string = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '230815da-be43-4aae-9cb4-875f7bd000aa'
+)
 output dataPlaneRoleDefinitionId string = cosmosDataPlaneRoleDefinitionId
 output databaseProvisioned bool = provisionCosmosResources
