@@ -18,9 +18,6 @@ param cosmosEndpoint string
 @description('Cosmos DB account resource ID for RBAC role assignment')
 param cosmosAccountId string
 
-@description('Cosmos DB Data Contributor role definition ID. Leave empty to create a custom role for the pet service.')
-param cosmosDataContributorRoleId string = '00000000-0000-0000-0000-000000000002'
-
 @description('Cosmos DB database name')
 param cosmosDatabaseName string = 'petservice'
 
@@ -30,18 +27,11 @@ param cosmosContainerName string = 'pets'
 @description('Whether to pre-provision the Cosmos SQL database and container (avoids needing sqlDatabases/write at runtime).')
 param provisionCosmosResources bool = true
 
-@description('Azure RBAC role definition ID to grant control plane permissions (defaults to Cosmos DB Operator).')
-param cosmosControlPlaneRoleDefinitionId string = '230815da-be43-4aae-9cb4-875f7bd000aa'
-
 // NOTE: Using built-in Cosmos DB Operator for control plane. If you require broader permissions
 // (e.g., role definition/assignment writes) consider supplying a different built-in role id or creating
 // a custom role in a separate template. This template purposefully avoids custom role creation for simplicity.
 
-// Provide a built-in data plane role definition ID via cosmosDataContributorRoleId for data actions.
-// Example: List available SQL role definitions: az cosmosdb sql role definition list --account-name <account>
-
-@description('Optional scope suffix for the data plane role assignment (for example "/dbs/petservice"). Leave empty to scope to the entire account.')
-param cosmosDataPlaneScope string = ''
+// Granting data plane access relies on the built-in Cosmos DB Data Contributor role scoped at the account.
 
 @description('Azure Container Registry name')
 param acrName string = ''
@@ -108,48 +98,14 @@ resource petServiceContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases
   }
 }
 
-// Data plane role: built-in Data Contributor does NOT include database creation; create custom if param left blank
-var useCustomDataPlaneRole = empty(cosmosDataContributorRoleId)
-var cosmosDataPlaneRoleDefinitionId = useCustomDataPlaneRole
-  ? cosmosCustomDataPlaneRoleDefinition.id
-  : '${cosmosAccountId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
-var cosmosDataPlaneAssignmentScope = empty(cosmosDataPlaneScope)
-  ? cosmosAccountId
-  : (startsWith(cosmosDataPlaneScope, '/subscriptions/')
-      ? cosmosDataPlaneScope
-      : '${cosmosAccountId}${cosmosDataPlaneScope}')
-
-// Custom data plane role definition (includes sqlDatabases/* so app can create database & containers)
-resource cosmosCustomDataPlaneRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2025-04-15' = if (useCustomDataPlaneRole) {
-  name: guid(cosmosAccount.id, '${name}-data-role')
-  parent: cosmosAccount
-  properties: {
-    roleName: '${name}-data-role'
-    type: 'CustomRole'
-    assignableScopes: [
-      cosmosAccount.id
-    ]
-    permissions: [
-      {
-        dataActions: [
-          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/*'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
-          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
-        ]
-      }
-    ]
-  }
-}
-
 // Grant Cosmos DB data plane permissions to the managed identity
 resource cosmosRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
   name: guid(cosmosAccountId, petServiceIdentity.id, 'cosmos-data-contributor')
   parent: cosmosAccount
   properties: {
-    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
+    roleDefinitionId: '${cosmosAccountId}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
     principalId: petServiceIdentity.properties.principalId
-    scope: cosmosDataPlaneAssignmentScope
+    scope: cosmosAccountId
   }
 }
 
@@ -160,7 +116,7 @@ resource cosmosControlPlaneRoleAssignment 'Microsoft.Authorization/roleAssignmen
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',
-      cosmosControlPlaneRoleDefinitionId
+      '230815da-be43-4aae-9cb4-875f7bd000aa'
     )
     principalId: petServiceIdentity.properties.principalId
     principalType: 'ServicePrincipal'
@@ -252,7 +208,7 @@ output identityPrincipalId string = petServiceIdentity.properties.principalId
 output identityClientId string = petServiceIdentity.properties.clientId
 output controlPlaneRoleDefinitionId string = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  cosmosControlPlaneRoleDefinitionId
+  '230815da-be43-4aae-9cb4-875f7bd000aa'
 )
-output dataPlaneRoleDefinitionId string = cosmosDataPlaneRoleDefinitionId
+output dataPlaneRoleDefinitionId string = '${cosmosAccountId}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
 output databaseProvisioned bool = provisionCosmosResources
