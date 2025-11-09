@@ -243,6 +243,48 @@ class CosmosDBService:
             logger.error(f"Failed to create database and seed data: {e}")
             raise
 
+    async def clean_database(self) -> Dict[str, Any]:
+        """Delete configured CosmosDB database and reset local references."""
+        database_id = self.settings.cosmos_database_name
+
+        try:
+            # Ensure we have a client without triggering container creation.
+            if self.client is None:
+                cosmos_client_options = self._build_cosmos_client_options()
+                self.client = CosmosClient(**cosmos_client_options)
+
+            try:
+                self.client.delete_database(database_id)
+                logger.info(
+                    f"Deleted CosmosDB database '{database_id}' and all containers")
+            except cosmos_exceptions.CosmosResourceNotFoundError:
+                logger.info(
+                    f"CosmosDB database '{database_id}' does not exist – nothing to delete")
+            except cosmos_exceptions.CosmosHttpResponseError as e:
+                logger.error(
+                    f"CosmosDB HTTP error deleting database '{database_id}': {e}")
+                raise
+
+            # Reset internal state so future operations perform a fresh setup.
+            self.client = None
+            self.database = None
+            self.container = None
+            self._initialized = False
+
+            return {
+                "status": "clean",
+                "database": database_id,
+                "message": "CosmosDB database deleted; environment reset"
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to clean CosmosDB database '{database_id}': {e}")
+            return {
+                "status": "error",
+                "database": database_id,
+                "error": str(e)
+            }
+
     def create_pet(self, pet_data: PetCreate) -> Pet:
         """
         Create a new pet in CosmosDB

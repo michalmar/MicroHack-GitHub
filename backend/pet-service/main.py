@@ -112,6 +112,30 @@ async def health_check(db: CosmosDBService = Depends(get_db)):
         )
 
 
+@app.post("/clean", tags=["Maintenance"])
+async def clean_database(db: CosmosDBService = Depends(get_db)):
+    """Delete the configured CosmosDB database and leave the service empty."""
+    try:
+        result = await db.clean_database()
+        if result.get("status") != "clean":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("error", "Failed to clean CosmosDB")
+            )
+
+        logger.info("CosmosDB environment reset for challenge setup")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning CosmosDB: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to clean CosmosDB"
+        )
+
+
 @app.get("/api/pets", response_model=List[Pet], tags=["Pets"])
 async def get_pets(
     search: Optional[str] = Query(
