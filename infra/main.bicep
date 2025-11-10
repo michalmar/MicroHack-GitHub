@@ -176,9 +176,19 @@ output cosmosEndpoint string = cosmosDb.outputs.endpoint
 output acrLoginServer string = containerRegistry.outputs.loginServer
 output acrName string = containerRegistry.outputs.name
 output acrResourceId string = containerRegistry.outputs.id
+
 output petServiceUrl string = petService.outputs.fqdn
+output petServiceName string = petService.outputs.name
+output petServiceManagedIdentityClientId string = petService.outputs.identityClientId
+
 output activityServiceUrl string = activityService.outputs.fqdn
+output activityServiceName string = activityService.outputs.name
+output activityServiceManagedIdentityClientId string = activityService.outputs.identityClientId
+
 output accessoryServiceUrl string = accessoryService.outputs.fqdn
+output accessoryServiceName string = accessoryService.outputs.name
+output accessoryServiceManagedIdentityClientId string = accessoryService.outputs.identityClientId
+
 output frontendUrl string = frontend.outputs.fqdn
 output githubManagedIdentityClientId string = githubManagedIdentityClientId == null
   ? ''
