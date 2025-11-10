@@ -20,6 +20,10 @@ env:
   RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}
   ACR_NAME: ${{ vars.ACR_NAME }}
   ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+  CONTAINER_APP_NAME: ${{ vars.PET_SERVICE_CONTAINER_APP_NAME }}
+  MANAGED_IDENTITY_CLIENT_ID: ${{ vars.PET_SERVICE_MI_CLIENT_ID }}
+  CONTAINER_APP_FQDN: ${{ vars.PET_SERVICE_FQDN }}
+  COSMOS_ENDPOINT: ${{ vars.COSMOS_ENDPOINT }}
 
 jobs:
   build-and-deploy:
@@ -36,80 +40,33 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Resolve Container App metadata
-        id: container_app
-        run: |
-          APP_NAME=$(az containerapp list \
-            --resource-group "$RESOURCE_GROUP" \
-            --query "[?contains(name, 'pet-service')].name | [0]" -o tsv)
-
-          if [ -z "$APP_NAME" ]; then
-            echo "No Container App matching 'pet-service' found in resource group $RESOURCE_GROUP." >&2
-            exit 1
-          fi
-
-          IDENTITY_CLIENT_ID=$(az containerapp show \
-            --name "$APP_NAME" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query "identity.userAssignedIdentities.*.clientId | [0]" -o tsv)
-
-          if [ -z "$IDENTITY_CLIENT_ID" ]; then
-            echo "Container App $APP_NAME does not have a user-assigned identity configured." >&2
-            exit 1
-          fi
-
-          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
-          echo "identity_client_id=$IDENTITY_CLIENT_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Get Cosmos DB endpoint
-        id: cosmos
-        run: |
-          COSMOS_ACCOUNT=$(az cosmosdb list --resource-group "$RESOURCE_GROUP" --query "[0].name" -o tsv)
-          COSMOS_ENDPOINT=$(az cosmosdb show --resource-group "$RESOURCE_GROUP" --name "$COSMOS_ACCOUNT" --query documentEndpoint -o tsv)
-
-          echo "endpoint=$COSMOS_ENDPOINT" >> "$GITHUB_OUTPUT"
-          echo "account=$COSMOS_ACCOUNT" >> "$GITHUB_OUTPUT"
-
       - name: Build and deploy Container App
         uses: azure/container-apps-deploy-action@v1
         with:
           acrName: ${{ env.ACR_NAME }}
-          containerAppName: ${{ steps.container_app.outputs.app_name }}
+          containerAppName: ${{ env.CONTAINER_APP_NAME }}
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           imageToBuild: ${{ env.ACR_LOGIN_SERVER }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           appSourcePath: ${{ github.workspace }}/${{ env.SERVICE_PATH }}
           environmentVariables: >-
-            AZURE_CLIENT_ID=${{ steps.container_app.outputs.identity_client_id }}
-            COSMOS_ENDPOINT=${{ steps.cosmos.outputs.endpoint }}
+            AZURE_CLIENT_ID=${{ env.MANAGED_IDENTITY_CLIENT_ID }}
+            COSMOS_ENDPOINT=${{ env.COSMOS_ENDPOINT }}
             COSMOS_DATABASE_NAME=${{ env.COSMOS_DATABASE_NAME }}
             COSMOS_CONTAINER_NAME=${{ env.COSMOS_CONTAINER_NAME }}
-
-      - name: Promote image tag to latest
-        run: |
-          az acr import \
-            --name "$ACR_NAME" \
-            --source "$ACR_LOGIN_SERVER/$SERVICE_NAME:$GITHUB_SHA" \
-            --image "$SERVICE_NAME:latest" \
-            --force
 
       - name: Wait for deployment
         run: sleep 30
 
       - name: Health check
         run: |
-          APP_URL=$(az containerapp show \
-            --name "${{ steps.container_app.outputs.app_name }}" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query properties.configuration.ingress.fqdn -o tsv)
-          
-          echo "Testing health endpoint: https://$APP_URL/health"
+          echo "Testing health endpoint: https://${{ env.CONTAINER_APP_FQDN }}/health"
           
           # Retry health check up to 5 times
           for i in {1..5}; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://$APP_URL/health" || echo "000")
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.CONTAINER_APP_FQDN }}/health" || echo "000")
             if [ "$HTTP_CODE" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_CODE)"
-              curl -s "https://$APP_URL/health" | jq '.'
+              curl -s "https://${{ env.CONTAINER_APP_FQDN }}/health" | jq '.'
               exit 0
             else
               echo "⚠️ Attempt $i: Health check returned HTTP $HTTP_CODE, retrying..."

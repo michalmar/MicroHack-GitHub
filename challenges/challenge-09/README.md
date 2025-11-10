@@ -140,8 +140,45 @@ repo:<owner>/<repo>
 
 
 3. **Store GitHub variables** for common values:
+  Retrieve backend microsservice managed identity client ID from Challenge 08 outputs and store as variables. These will be used in workflows to set environment variables.
+  ```bash
+  PET_SERVICE_CONTAINER_APP_NAME=$(azd env get-value petServiceName)
+  PET_SERVICE_FQDN=$(azd env get-value petServiceUrl)
+  PET_SERVICE_MI_CLIENT_ID=$(azd env get-value petServiceManagedIdentityClientId)
+  
+  ACTIVITY_SERVICE_CONTAINER_APP_NAME=$(azd env get-value activityServiceName)
+  ACTIVITY_SERVICE_FQDN=$(azd env get-value activityServiceUrl)
+  ACTIVITY_SERVICE_MI_CLIENT_ID=$(azd env get-value activityServiceManagedIdentityClientId)
+  
+  ACCESSORY_SERVICE_CONTAINER_APP_NAME=$(azd env get-value accessoryServiceName)
+  ACCESSORY_SERVICE_FQDN=$(azd env get-value accessoryServiceUrl)
+  ACCESSORY_SERVICE_MI_CLIENT_ID=$(azd env get-value accessoryServiceManagedIdentityClientId)
+  
+  COSMOS_ENDPOINT=$(azd env get-value cosmosEndpoint)
+
+  echo "PET_SERVICE_CONTAINER_APP_NAME=$PET_SERVICE_CONTAINER_APP_NAME"
+  echo "PET_SERVICE_FQDN=$PET_SERVICE_FQDN"
+  echo "PET_SERVICE_MI_CLIENT_ID=$PET_SERVICE_MI_CLIENT_ID"
+  echo "ACTIVITY_SERVICE_CONTAINER_APP_NAME=$ACTIVITY_SERVICE_CONTAINER_APP_NAME"
+  echo "ACTIVITY_SERVICE_FQDN=$ACTIVITY_SERVICE_FQDN"
+  echo "ACTIVITY_SERVICE_MI_CLIENT_ID=$ACTIVITY_SERVICE_MI_CLIENT_ID"
+  echo "ACCESSORY_SERVICE_CONTAINER_APP_NAME=$ACCESSORY_SERVICE_CONTAINER_APP_NAME"
+  echo "ACCESSORY_SERVICE_FQDN=$ACCESSORY_SERVICE_FQDN"
+  echo "ACCESSORY_SERVICE_MI_CLIENT_ID=$ACCESSORY_SERVICE_MI_CLIENT_ID"
+  echo "COSMOS_ENDPOINT=$COSMOS_ENDPOINT"
+  ```
 
   ```bash
+  gh variable set PET_SERVICE_CONTAINER_APP_NAME --body "$PET_SERVICE_CONTAINER_APP_NAME" --repo "$REPO_FULL"
+  gh variable set PET_SERVICE_FQDN --body "$PET_SERVICE_FQDN" --repo "$REPO_FULL"
+  gh variable set PET_SERVICE_MI_CLIENT_ID --body "$PET_SERVICE_MI_CLIENT_ID" --repo "$REPO_FULL"
+  gh variable set ACTIVITY_SERVICE_CONTAINER_APP_NAME --body "$ACTIVITY_SERVICE_CONTAINER_APP_NAME" --repo "$REPO_FULL"
+  gh variable set ACTIVITY_SERVICE_FQDN --body "$ACTIVITY_SERVICE_FQDN" --repo "$REPO_FULL"
+  gh variable set ACTIVITY_SERVICE_MI_CLIENT_ID --body "$ACTIVITY_SERVICE_MI_CLIENT_ID" --repo "$REPO_FULL"
+  gh variable set ACCESSORY_SERVICE_CONTAINER_APP_NAME --body "$ACCESSORY_SERVICE_CONTAINER_APP_NAME" --repo "$REPO_FULL"
+  gh variable set ACCESSORY_SERVICE_FQDN --body "$ACCESSORY_SERVICE_FQDN" --repo "$REPO_FULL"
+  gh variable set ACCESSORY_SERVICE_MI_CLIENT_ID --body "$ACCESSORY_SERVICE_MI_CLIENT_ID" --repo "$REPO_FULL"
+  gh variable set COSMOS_ENDPOINT --body "$COSMOS_ENDPOINT" --repo "$REPO_FULL"
   gh variable set RESOURCE_GROUP --body "$RESOURCE_GROUP" --repo "$REPO_FULL"
   gh variable set ACR_NAME --body "$ACR_NAME" --repo "$REPO_FULL"
   gh variable set ACR_LOGIN_SERVER --body "$ACR_LOGIN_SERVER" --repo "$REPO_FULL"
