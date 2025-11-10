@@ -59,14 +59,14 @@ jobs:
 
       - name: Health check
         run: |
-          echo "Testing health endpoint: https://${{ env.CONTAINER_APP_FQDN }}/health"
+          echo "Testing health endpoint: ${{ env.CONTAINER_APP_FQDN }}/health"
           
           # Retry health check up to 5 times
           for i in {1..5}; do
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ env.CONTAINER_APP_FQDN }}/health" || echo "000")
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.CONTAINER_APP_FQDN }}/health" || echo "000")
             if [ "$HTTP_CODE" == "200" ]; then
               echo "✅ Health check passed (HTTP $HTTP_CODE)"
-              curl -s "https://${{ env.CONTAINER_APP_FQDN }}/health" | jq '.'
+              curl -s "${{ env.CONTAINER_APP_FQDN }}/health" | jq '.'
               exit 0
             else
               echo "⚠️ Attempt $i: Health check returned HTTP $HTTP_CODE, retrying..."
