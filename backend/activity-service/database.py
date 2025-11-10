@@ -127,12 +127,23 @@ class ActivityCosmosService:
 
             # Try to perform a simple query to verify connection
             try:
-                list(self.container.query_items(
+                items = list(self.container.query_items(
                     query="SELECT TOP 1 c.id FROM c",
                     enable_cross_partition_query=True,
                     max_item_count=1
                 ))
-                return {"status": "healthy", "database": self.database_name}
+
+                if items:
+                    return {"status": "healthy", "database": self.database_name}
+
+                logger.info(
+                    "Database is reachable but empty. Seeding with sample data...")
+                await self._database_seed()
+                return {
+                    "status": "healthy",
+                    "database": self.database_name,
+                    "message": "Database was empty and has been seeded with sample data"
+                }
 
             except (cosmos_exceptions.CosmosResourceNotFoundError, cosmos_exceptions.CosmosHttpResponseError) as e:
                 # Database or container doesn't exist - check if it's a "not found" type error
@@ -179,50 +190,7 @@ class ActivityCosmosService:
             self.container = self.database.get_container_client(
                 self.container_name)
 
-            # Seed with sample activities (from user requirements)
-            logger.info("Seeding container with sample activity data")
-            sample_activities = [
-                {
-                    "id": "a1",
-                    "petId": "p1",
-                    "type": "walk",
-                    "timestamp": "2025-10-05T08:30:00Z",
-                    "notes": "Park loop",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                },
-                {
-                    "id": "a2",
-                    "petId": "p2",
-                    "type": "feed",
-                    "timestamp": "2025-10-05T07:00:00Z",
-                    "notes": "Tuna pouch",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                },
-                {
-                    "id": "a3",
-                    "petId": "p1",
-                    "type": "play",
-                    "timestamp": "2025-10-04T18:00:00Z",
-                    "notes": "Frisbee",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                }
-            ]
-
-            # Insert sample activities
-            for activity_data in sample_activities:
-                try:
-                    self.container.create_item(body=activity_data)
-                    logger.info(
-                        f"Seeded activity: {activity_data['id']} - {activity_data['type']} ({activity_data['notes']})")
-                except cosmos_exceptions.CosmosResourceExistsError:
-                    # Activity already exists, skip
-                    logger.info(
-                        f"Activity {activity_data['id']} already exists, skipping")
-                    pass
-
+            await self._database_seed()
             logger.info("Database setup and seeding completed successfully")
             return {
                 "status": "healthy",
@@ -232,6 +200,54 @@ class ActivityCosmosService:
         except Exception as e:
             logger.error(f"Failed to create database and seed data: {e}")
             return {"status": "unhealthy", "error": f"Failed to create database: {e}"}
+
+    async def _database_seed(self) -> None:
+        """Seed the existing CosmosDB container with sample activity data."""
+        if self.container is None:
+            raise RuntimeError(
+                "Cosmos container is not initialized; cannot seed database")
+
+        logger.info("Seeding container with sample activity data")
+        sample_activities = [
+            {
+                "id": "a1",
+                "petId": "p1",
+                "type": "walk",
+                "timestamp": "2025-10-05T08:30:00Z",
+                "notes": "Park loop",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            },
+            {
+                "id": "a2",
+                "petId": "p2",
+                "type": "feed",
+                "timestamp": "2025-10-05T07:00:00Z",
+                "notes": "Tuna pouch",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            },
+            {
+                "id": "a3",
+                "petId": "p1",
+                "type": "play",
+                "timestamp": "2025-10-04T18:00:00Z",
+                "notes": "Frisbee",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            }
+        ]
+
+        # Insert sample activities
+        for activity_data in sample_activities:
+            try:
+                self.container.create_item(body=activity_data)
+                logger.info(
+                    f"Seeded activity: {activity_data['id']} - {activity_data['type']} ({activity_data['notes']})")
+            except cosmos_exceptions.CosmosResourceExistsError:
+                logger.info(
+                    f"Activity {activity_data['id']} already exists, skipping")
+                continue
 
     def create_activity(self, activity_data: ActivityCreate) -> Activity:
         """

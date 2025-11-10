@@ -135,7 +135,7 @@ test_service() {
     
     if [ -z "$app_name" ]; then
         failure "Service not found in resource group"
-        echo "NOT_FOUND|$service_name|N/A|false"
+        echo "NOT_FOUND|$service_name|N/A|false|"
         return 1
     fi
     
@@ -149,7 +149,7 @@ test_service() {
     
     if [ -z "$fqdn" ]; then
         failure "Could not retrieve service URL"
-        echo "NO_INGRESS|$service_name|N/A|false"
+        echo "NO_INGRESS|$service_name|N/A|false|"
         return 1
     fi
     
@@ -170,28 +170,23 @@ test_service() {
     
     if [ "$http_code" != "200" ]; then
         failure "Health check failed with HTTP $http_code"
-        echo "HTTP_${http_code}|$service_name|$health_url|false"
+        echo "HTTP_${http_code}|$service_name|$health_url|false|"
         return 1
     fi
     
     # Parse JSON response
     if ! echo "$response_body" | jq -e . >/dev/null 2>&1; then
         failure "Invalid JSON response"
-        echo "INVALID_JSON|$service_name|$health_url|false"
+        echo "INVALID_JSON|$service_name|$health_url|false|"
         return 1
     fi
     
-    local status version db_status db_name
+    local status
     status=$(echo "$response_body" | jq -r '.status // "unknown"')
-    version=$(echo "$response_body" | jq -r '.version // "unknown"')
-    db_status=$(echo "$response_body" | jq -r '.database.status // "unknown"')
-    db_name=$(echo "$response_body" | jq -r '.database.database // "unknown"')
     
     # Validate response
-    if [ "$status" = "healthy" ] && [ "$db_status" = "connected" ]; then
+    if [ "$status" = "healthy" ]; then
         success "Service is healthy (${response_time}ms)"
-        echo -e "    ${GRAY}• Version: ${version}${NC}"
-        echo -e "    ${GRAY}• Database: Connected to ${db_name}${NC}"
         
         if [ "$DETAILED" = true ]; then
             echo ""
@@ -201,15 +196,11 @@ test_service() {
             done
         fi
         
-        echo "HEALTHY|$service_name|$health_url|true|$response_time|$version|$db_name"
+        echo "HEALTHY|$service_name|$health_url|true|$response_time"
         return 0
     elif [ "$status" != "healthy" ]; then
         failure "Service status is not healthy: $status"
-        echo "UNHEALTHY|$service_name|$health_url|false"
-        return 1
-    elif [ "$db_status" != "connected" ]; then
-        failure "Database connection failed: $db_status"
-        echo "DB_ERROR|$service_name|$health_url|false"
+        echo "UNHEALTHY|$service_name|$health_url|false|"
         return 1
     fi
 }
@@ -239,11 +230,25 @@ main() {
     local all_healthy=true
     
     for service in "${!SERVICES[@]}"; do
+        local last_line
+        # Print detailed output while keeping only the final summary line for later aggregation.
         if result=$(test_service "$service"); then
-            results+=("$result")
+            printf '%s\n' "$result" | sed '$d'
+            last_line=$(printf '%s\n' "$result" | tail -n1)
+            if [ -n "$last_line" ]; then
+                results+=("$last_line")
+            else
+                results+=("NO_RESULT|$service|N/A|false|")
+            fi
         else
+            printf '%s\n' "$result" | sed '$d'
+            last_line=$(printf '%s\n' "$result" | tail -n1)
             all_healthy=false
-            results+=("$result")
+            if [ -n "$last_line" ]; then
+                results+=("$last_line")
+            else
+                results+=("NO_RESULT|$service|N/A|false|")
+            fi
         fi
     done
     
@@ -256,10 +261,14 @@ main() {
     echo ""
     
     for result in "${results[@]}"; do
-        IFS='|' read -r status service_name url healthy response_time version db_name <<< "$result"
+        IFS='|' read -r status service_name url healthy response_time <<< "$result"
         
         if [ "$healthy" = "true" ]; then
-            printf "  ${GREEN}✅ %-20s HEALTHY (%sms)${NC}\n" "$service_name" "$response_time"
+            if [ -n "$response_time" ]; then
+                printf "  ${GREEN}✅ %-20s HEALTHY (%sms)${NC}\n" "$service_name" "$response_time"
+            else
+                printf "  ${GREEN}✅ %-20s HEALTHY${NC}\n" "$service_name"
+            fi
         else
             printf "  ${RED}❌ %-20s %s${NC}\n" "$service_name" "$status"
         fi

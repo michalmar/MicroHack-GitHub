@@ -129,12 +129,23 @@ class CosmosDBService:
 
             # Try to perform a simple query to verify connection
             try:
-                list(self.container.query_items(
+                items = list(self.container.query_items(
                     query="SELECT TOP 1 c.id FROM c",
                     enable_cross_partition_query=True,
                     max_item_count=1
                 ))
-                return {"status": "healthy", "database": self.settings.cosmos_database_name}
+
+                if items:
+                    return {"status": "healthy", "database": self.settings.cosmos_database_name}
+
+                logger.info(
+                    "Database is reachable but empty. Seeding with sample data...")
+                await self._database_seed()
+                return {
+                    "status": "healthy",
+                    "database": self.settings.cosmos_database_name,
+                    "message": "Database was empty and has been seeded with sample data"
+                }
 
             except (cosmos_exceptions.CosmosResourceNotFoundError, cosmos_exceptions.CosmosHttpResponseError) as e:
                 # Database or container doesn't exist - check if it's a "not found" type error
@@ -181,67 +192,114 @@ class CosmosDBService:
             self.container = self.database.get_container_client(
                 self.settings.cosmos_container_name)
 
-            # Seed with sample data
-            logger.info("Seeding container with sample pet data")
-            sample_pets = [
-                {
-                    "id": "p1",
-                    "name": "Luna",
-                    "species": "dog",
-                    "ageYears": 3,
-                    "health": 82,
-                    "happiness": 91,
-                    "energy": 76,
-                    "avatarUrl": "",
-                    "notes": "Loves fetch",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                },
-                {
-                    "id": "p2",
-                    "name": "Milo",
-                    "species": "cat",
-                    "ageYears": 2,
-                    "health": 88,
-                    "happiness": 73,
-                    "energy": 65,
-                    "avatarUrl": "",
-                    "notes": "Window watcher",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                },
-                {
-                    "id": "p3",
-                    "name": "Pico",
-                    "species": "bird",
-                    "ageYears": 1,
-                    "health": 75,
-                    "happiness": 80,
-                    "energy": 90,
-                    "avatarUrl": "",
-                    "notes": "Chirpy",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat()
-                }
-            ]
-
-            # Insert sample pets
-            for pet_data in sample_pets:
-                try:
-                    self.container.create_item(body=pet_data)
-                    logger.info(
-                        f"Seeded pet: {pet_data['name']} ({pet_data['id']})")
-                except cosmos_exceptions.CosmosResourceExistsError:
-                    # Pet already exists, skip
-                    logger.info(
-                        f"Pet {pet_data['name']} ({pet_data['id']}) already exists, skipping")
-                    pass
-
+            await self._database_seed()
             logger.info("Database setup and seeding completed successfully")
 
         except Exception as e:
             logger.error(f"Failed to create database and seed data: {e}")
             raise
+
+    async def _database_seed(self) -> None:
+        """Seed the existing CosmosDB container with sample pet data."""
+        if self.container is None:
+            raise RuntimeError(
+                "Cosmos container is not initialized; cannot seed database")
+
+        logger.info("Seeding container with sample pet data")
+        sample_pets = [
+            {
+                "id": "p1",
+                "name": "Luna",
+                "species": "dog",
+                "ageYears": 3,
+                "health": 82,
+                "happiness": 91,
+                "energy": 76,
+                "avatarUrl": "",
+                "notes": "Loves fetch",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            },
+            {
+                "id": "p2",
+                "name": "Milo",
+                "species": "cat",
+                "ageYears": 2,
+                "health": 88,
+                "happiness": 73,
+                "energy": 65,
+                "avatarUrl": "",
+                "notes": "Window watcher",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            },
+            {
+                "id": "p3",
+                "name": "Pico",
+                "species": "bird",
+                "ageYears": 1,
+                "health": 75,
+                "happiness": 80,
+                "energy": 90,
+                "avatarUrl": "",
+                "notes": "Chirpy",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat()
+            }
+        ]
+
+        for pet_data in sample_pets:
+            try:
+                self.container.create_item(body=pet_data)
+                logger.info(
+                    f"Seeded pet: {pet_data['name']} ({pet_data['id']})")
+            except cosmos_exceptions.CosmosResourceExistsError:
+                logger.info(
+                    f"Pet {pet_data['name']} ({pet_data['id']}) already exists, skipping")
+                continue
+
+    async def clean_database(self) -> Dict[str, Any]:
+        """Delete configured CosmosDB database and reset local references."""
+        database_id = self.settings.cosmos_database_name
+
+        try:
+            # Ensure we have a client without triggering container creation.
+            if self.client is None:
+                cosmos_client_options = self._build_cosmos_client_options()
+                self.client = CosmosClient(**cosmos_client_options)
+
+            try:
+                self.client.delete_database(database_id)
+                logger.info(
+                    f"Deleted CosmosDB database '{database_id}' and all containers")
+            except cosmos_exceptions.CosmosResourceNotFoundError:
+                logger.info(
+                    f"CosmosDB database '{database_id}' does not exist – nothing to delete")
+            except cosmos_exceptions.CosmosHttpResponseError as e:
+                logger.error(
+                    f"CosmosDB HTTP error deleting database '{database_id}': {e}")
+                raise
+
+            # Reset internal state so future operations perform a fresh setup.
+            self.client = None
+            self.database = None
+            self.container = None
+            self._initialized = False
+
+            return {
+                "status": "clean",
+                "database": database_id,
+                "message": "CosmosDB database deleted; environment reset"
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Failed to clean CosmosDB database '{database_id}': {e}")
+            return {
+                "status": "error",
+                "database": database_id,
+                "error": str(e)
+            }
 
     def create_pet(self, pet_data: PetCreate) -> Pet:
         """

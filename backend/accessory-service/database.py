@@ -115,14 +115,25 @@ class AccessoryCosmosService:
             self._ensure_initialized()
 
             try:
-                list(
+                items = list(
                     self.container.query_items(
                         query="SELECT TOP 1 c.id FROM c",
                         enable_cross_partition_query=True,
                         max_item_count=1,
                     )
                 )
-                return {"status": "healthy", "database": self.database_name}
+
+                if items:
+                    return {"status": "healthy", "database": self.database_name}
+
+                logger.info(
+                    "Database is reachable but empty. Seeding with sample data...")
+                await self._database_seed()
+                return {
+                    "status": "healthy",
+                    "database": self.database_name,
+                    "message": "Database was empty and has been seeded with sample data",
+                }
             except (cosmos_exceptions.CosmosResourceNotFoundError, cosmos_exceptions.CosmosHttpResponseError) as e:
                 error_message = str(e).lower()
                 if "does not exist" in error_message or "notfound" in error_message or (
@@ -162,48 +173,56 @@ class AccessoryCosmosService:
             self.container = self.database.get_container_client(
                 self.container_name)
 
-            logger.info("Seeding container with sample accessory data")
-            sample_accessories = [
-                {
-                    "id": "x1",
-                    "name": "Chew Toy",
-                    "type": "toy",
-                    "price": 8.99,
-                    "stock": 12,
-                    "size": "M",
-                    "imageUrl": "",
-                    "description": "Durable rope",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat(),
-                },
-                {
-                    "id": "x2",
-                    "name": "Salmon Treats",
-                    "type": "food",
-                    "price": 5.49,
-                    "stock": 3,
-                    "size": "S",
-                    "imageUrl": "",
-                    "description": "Soft chews",
-                    "createdAt": datetime.utcnow().isoformat(),
-                    "updatedAt": datetime.utcnow().isoformat(),
-                },
-            ]
-
-            for accessory_data in sample_accessories:
-                try:
-                    self.container.create_item(body=accessory_data)
-                    logger.info(
-                        f"Seeded accessory: {accessory_data['name']} ({accessory_data['id']})")
-                except cosmos_exceptions.CosmosResourceExistsError:
-                    logger.info(
-                        f"Accessory {accessory_data['name']} ({accessory_data['id']}) already exists, skipping")
-
+            await self._database_seed()
             logger.info("Database setup and seeding completed successfully")
             return {"status": "healthy", "message": "Database and container created successfully with sample data"}
         except Exception as e:
             logger.error(f"Failed to create database and seed data: {e}")
             return {"status": "unhealthy", "error": f"Failed to create database: {e}"}
+
+    async def _database_seed(self) -> None:
+        """Seed the existing CosmosDB container with sample accessory data."""
+        if self.container is None:
+            raise RuntimeError(
+                "Cosmos container is not initialized; cannot seed database")
+
+        logger.info("Seeding container with sample accessory data")
+        sample_accessories = [
+            {
+                "id": "x1",
+                "name": "Chew Toy",
+                "type": "toy",
+                "price": 8.99,
+                "stock": 12,
+                "size": "M",
+                "imageUrl": "",
+                "description": "Durable rope",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat(),
+            },
+            {
+                "id": "x2",
+                "name": "Salmon Treats",
+                "type": "food",
+                "price": 5.49,
+                "stock": 3,
+                "size": "S",
+                "imageUrl": "",
+                "description": "Soft chews",
+                "createdAt": datetime.utcnow().isoformat(),
+                "updatedAt": datetime.utcnow().isoformat(),
+            },
+        ]
+
+        for accessory_data in sample_accessories:
+            try:
+                self.container.create_item(body=accessory_data)
+                logger.info(
+                    f"Seeded accessory: {accessory_data['name']} ({accessory_data['id']})")
+            except cosmos_exceptions.CosmosResourceExistsError:
+                logger.info(
+                    f"Accessory {accessory_data['name']} ({accessory_data['id']}) already exists, skipping")
+                continue
 
     def create_accessory(self, accessory_data: AccessoryCreate) -> Accessory:
         """Create a new accessory in CosmosDB."""
