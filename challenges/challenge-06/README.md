@@ -41,8 +41,6 @@ You should see the Cosmos DB Emulator explorer interface confirming the emulator
 ### 0.2 Start Backend Microservices
 From repository root, ideally run in separate Terminals (icon of terminal with `+` in VS Code) icon looks like this:
 
-> Important: make the auto-forwarded ports Public:
-> ![public port](../../solutions/challenge-06/docs/ports-public.png)
 
 Start the Pet Service backend:
 ```sh
@@ -55,16 +53,32 @@ Start the Activity service backend:
 cd backend/activity-service && ./start.sh
 ```
 
-Ports (example):
+**Make the ports public**
+
+You have started two backend services that will be used by the frontend UI:
 * pet-service: 8010
 * activity-service: 8020
 
 
-### 0.3 Run UI (adjust backend URLs if using Codespaces)
+Now check and make the auto-forwarded ports Public:
+
+Option 1 - through GitHub Codespaces UI
+- In GitHub Codespaces, go to the Ports tab (bottom panel), find the ports 8010 and 8020, and set their visibility to "Public" by righ-clicking on the port:
+![make ports public](../../solutions/challenge-06/docs/codespaces-port-change-visibility.png)
+
+Option 2 - thtough script
+```sh
+./challenges/challenge-06/scripts/setup_ports.sh
+```
+
+In the end you should see the ports in Ports tab as Public:
+ ![public ports](../../solutions/challenge-06/docs/codespaces-ports-public.png)
+
+
+### 0.3 Run UI Frontend
 Once the backend services are running, you can start the frontend (already prepared as docker image).
 
-> Important: The URLs for the backend services will be automatically generated using the CODESPACE_NAME environment variable:
-> ![ports](../../solutions/challenge-06/docs/codespaces-ports.png)
+> Note: The URLs for the backend services will be automatically generated using the CODESPACE_NAME environment variable.
 
 
 ```sh
@@ -81,8 +95,7 @@ docker run -d \
 
 ```
 
-
-Open the forwarded port (3000). An you should see something similar to:
+Open the forwarded port (3000) - Go to Codespaces' Ports tab and click on the Globe icon. An you should see something similar to:
 
 > Note: for the first time it also creates and do initial load of data to the Cosmos DB, so it might take few seconds to load.
 
