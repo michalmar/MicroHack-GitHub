@@ -57,6 +57,38 @@ https://learn.microsoft.com/en-us/agent-framework/overview/agent-framework-overv
 You can also add web search tools such as `Tavily`.
 
 ## Agent Mode
+Agent mode provides iterative session where agent works on task by researching, reasoning, coding, using tools and eve (with your permissions) running tests, deployments, compilations and so on.
+
+Let's try something complex to see how agent iterates, makes mistakes and figuring out how to move forward.
+
+```markdown
+Create new backend service called discussions-service that provides API and backend for discussions between pet owners.
+
+# Solution Architecture
+- Python with FastAPI framework
+- CosmosDB as backend database (NoSQL document store)
+- Discussion rooms (public and private) with invitation system
+- Message threads with support for text and attachments
+- Room membership management and access control
+- No authentication required at this point (simplified for demo)
+- Comprehensive unit tests for all API endpoints
+- Integration tests covering full workflows (create room, invite users, post messages, attach files, delete)
+
+# Implementation steps
+- Create base folder in backend/discussions-service and initialize with uv
+- Design Pydantic models for rooms, messages, invitations, and attachments
+- Implement mocked CRUD APIs for rooms, messages, invitations, and attachments
+- Write and run unit tests for all mocked endpoints
+- Use Azure CLI to provision CosmosDB account with appropriate database and containers
+- Store CosmosDB connection details and credentials in .env file
+- Add database connection code and write integration tests to verify CosmosDB accessibility
+- Implement automatic schema/container creation for rooms, messages, invitations, and attachments collections
+- Replace mocked implementations with real CosmosDB operations using cosmos SDK
+- Write and execute comprehensive integration test suite covering: create public/private rooms, invite users, post messages with attachments, query discussions, delete operations
+- Create detailed README.md documenting architecture, data models, API endpoints, and usage examples
+```
+
+As you can see agent can be very powerful, but requires very specific guadance, rules and tools. We will use agent to implement our `accessory` service later, but before we do so, we need to create coding guidelines, add tools and in nech challenge author comprehensive technical specification.
 
 ## Customize Copilot to fit our project needs
 
