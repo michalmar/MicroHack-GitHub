@@ -65,13 +65,7 @@ GitHub Codespaces is a cloud-based development environment hosted by GitHub. Eac
    - Explore the file structure in the Explorer panel
    - Open a terminal (Terminal → New Terminal)
    
-2. **Test the PetPal Application**
-   - Navigate to the backend services directory
-   - Try running the pet-service to see what's currently available:
-     ```bash
-     cd backend/pet-service
-     python main.py
-     ```
+2. **Test dafault environment**
    - Check which tools are pre-installed:
      ```bash
      python --version
