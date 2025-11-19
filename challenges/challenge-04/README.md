@@ -1,117 +1,137 @@
-# Challenge 04: Collaborative Change Design using GitHub Issues / Discussions
+# Challenge 04: Brainstorming with AI, project management
 
 ## Overview
+In this challenge we will work on roadmap for our product
 
-Participants define requirements for future work directly in the form of GitHub Issues. This includes thinking about how to transform business requirements into technical tasks.
+## Create GitHub Copilot Spaces
+We will create our **knowledge base** that spans multiple repositories and other sources.
 
-## Learning Objectives
+Go to [https://github.com/copilot/spaces](https://github.com/copilot/spaces) and create ne Space called `<yourname>-space`
 
-- Learn to use GitHub Issues for project management and collaboration
-- Understand how to break down business requirements into technical tasks
-- Practice collaborative discussion and decision-making
-- Experience GitHub's project management features
+- Add full repository `MicroHack-GitHub-engineering-constitution` 
+- Add file `PRD.md` from `MicroHack-GitHub`.
+- To demonstrate adding arbitrary files Upload file `context/pet-services-trends.md` that contains article about latest trends in industry
 
-## Prerequisites
+Add following custom instructions:
 
-- Access to GitHub repository with Issues enabled
-- Understanding of the existing pet management microservices
-- Basic knowledge of software requirements gathering
+```markdown
+You are product advisor for PetPal:
 
-## Tasks
+- Scope: Frontend + Pet & Activity services only
+- Respect: Existing APIs, repo guidelines (AGENTS.md), current PRD
+- Tasks: Generate feature ideas → user stories → acceptance criteria → high-level architecture → phased roadmap
+- Style: Concise, assumption-aware, measurable outcomes, call out dependencies/risks
+- Guardrails: No accessory/commerce features unless explicitly requested; align with existing data models
+- Output: Actionable, traceable to PRD sections (Goals, Metrics, Scenarios)
+```
 
-### Task 1: Explore Current System
-1. Review the existing pet management system architecture
-2. Understand the current microservices (Pet Service, Activity Service, Accessory Service)
-3. Identify areas for improvement or new features
-4. Document your findings in a GitHub Discussion
+## Brainstorm about new features
+Directly in Spaces start new conversation using `GPT-5.1` model. Ask about suggestion for next features to implement into product. That specifically discuss adding new feature - accessories and how it might create new revenue streams.
 
-### Task 2: Business Requirements Analysis
-Work with your team to identify and discuss potential new features:
+Start with:
 
-**Potential Features to Consider:**
-- Pet health tracking and veterinary appointment management
-- Pet social features (playdates, pet matching)
-- Advanced analytics and reporting
-- Mobile application companion
-- Integration with external services (veterinary clinics, pet stores)
-- Real-time notifications and alerts
+```markdown
+What high‑impact opportunities (e.g., engagement, retention, monetization, operational efficiency) should be on our next 3–6 month roadmap, and what early signals or user pains justify exploring them?
+```
 
-### Task 3: Create Structured GitHub Issues
-For each identified feature, create a GitHub Issue with:
+Think about some of those ideas, we will come to them later.
 
-1. **Clear Title**: Descriptive and specific
-2. **Business Context**: Why this feature is needed
-3. **User Stories**: Who benefits and how
-4. **Acceptance Criteria**: What defines "done"
-5. **Technical Considerations**: High-level implementation notes
-6. **Dependencies**: What needs to happen first
-7. **Effort Estimation**: Rough complexity assessment
+Ask about accessories:
 
-### Task 4: Use GitHub Project Management Features
-1. Create a GitHub Project board
-2. Organize issues into columns (Backlog, In Progress, Done)
-3. Add labels for categorization (enhancement, bug, documentation, etc.)
-4. Assign issues to team members
-5. Set milestones for related features
+```markdown
+What are the potential benefits (revenue streams, user stickiness, cross‑sell, data insights) and downsides (scope creep, inventory complexity, distraction from core pet/activity value) of introducing an accessories feature, and how could we mitigate the risks while validating demand quickly?
+```
 
-### Task 5: Collaborative Discussion
-1. Use GitHub Discussions for broader architectural decisions
-2. Comment on each other's issues with questions and suggestions
-3. Refine requirements based on team feedback
-4. Prioritize issues based on business value and technical complexity
+## Issues and planning
+Now we have brainstormed ideas let's transform it into work items and project planning.
 
-### Task 6: From Business to Technical
-Transform at least one business requirement into detailed technical tasks:
+Go to your Codespaces and make sure GitHub MCP is configured and connected so you can ask Copilot to create Issues for you.
 
-1. Break down the feature into smaller, manageable tasks
-2. Identify required API changes, database schema updates, etc.
-3. Create linked issues for each technical component
-4. Document integration points with existing services
-5. Consider testing and deployment requirements
+Ask Copilot to create few high level Issues you remember from your brainstorming session referencing our knowledge base. Here is example prompt:
+
+```markdown
+Create enhancement issues for following ideas. You may use context and previous discussions in `tomaskubica-space` Copilot Space to enhance description of that idea.
+
+### Enhancement: Optimize Create Pet → First Activity Funnel
+Streamline the journey (dashboard → create pet → log first activity) into a single, guided flow. Reduce clicks and form friction with inline creation and immediate activity prompt.
+
+### Enhancement: Rich Activity Timeline & Filtering
+Provide per-pet timeline with icons plus global filters (pet, type, date range) to speed retrieval. Improves engagement depth and reduces scrolling fatigue for staff users.
+
+### Enhancement: Frontend & Service Telemetry Instrumentation
+Add funnel and latency events (pet/activity create start/success/fail) with trace correlation. Enables measuring PRD success metrics and data-driven UX iteration.
+
+### Enhancement: Service Health & Degradation Indicators
+Implement robust `/health` checks and expose status to the frontend with clear banners. Allows graceful degradation when one service or Cosmos is impaired.
+
+### Enhancement: High-Frequency Activity Logging UX
+Introduce quick-add and duplicate-last shortcuts for recurring activities. Lowers effort for caretakers logging many entries daily, boosting cross-module usage.
+
+### Enhancement: Backend Pagination & Filtering Support
+Ensure Pet and Activity services provide server-side pagination, search, and filtered queries. Prevents over-fetching and keeps latency/RU consumption within targets.
+
+### Enhancement: Accessibility & Keyboard-First Improvements
+Audit and enhance forms, modals, and timelines for full keyboard and screen-reader support. Establish WCAG 2.1 AA compliance early to avoid costly retrofits.
+
+### Enhancement: Pet Metadata Caching & Validation Resilience
+Decouple Activity writes from synchronous Pet validation using cached or advisory checks. Mitigates cascading failures and maintains logging continuity during outages.
+```
+
+Open `Issues` in your GitHub.com repository and see what has been created. Click inside to see extra content Copilot has authored.
+
+## Arrange issues within Project
+Go to `Projects` in your GitHub.com repository, click `New project` and select for example `Kanban` template, confirm import of Open issues from your repo. 
+
+![](./docs/projects.png)
+
+## Create PRD for accessories functionality
+After our brainstorming we have few ideas that we want to add into our Product Requirements Document, let's Copilot to help as merge it and formulate properly.
+
+Example prompt:
+
+```markdown
+You have access to `tomaskubica-space` Copilot Space and to #PRD.md with our up-to-date product requirements. We have desided to add new `Accessories` capability into our product and your task is help formulate and merge requirements for this new service.
+
+You can also search for relevant sections in repository #githubRepo CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution
+
+- Scope: Frontend + Pet, Activity, and new Accessory service
+- Respect: Existing APIs and current `PRD.md`
+- Tasks: Update `PRD.md` to introduce an `Accessories` capability as a first‑class product feature
+- Style: Concise, assumption‑aware, measurable outcomes, clear user stories and scenarios
+- Guardrails: This is a PRD only — do NOT add implementation details (no APIs, data schemas, database specifics, or code snippets). Focus on user value, user stories, flows, and success metrics.
+
+Ntes:
+- There will be separate Accessory Service with CRUD operations and search/filtering over accessories (type, low stock, pagination, etc.).
+- Accessories include things like toys, food, collars, bedding, grooming, and other items, with stock and pricing.
+- The service is intended to complement existing Pet and Activity services and eventually support monetization/engagement use cases.
+
+Update `PRD.md` as follows:
+1. Add an `Accessories` section (or extend an existing appropriate section) that:
+   - Describes the high‑level problem and opportunity (e.g., new revenue streams, better engagement, cross‑sell with pet activities).
+   - Defines primary user roles (e.g., caretakers, staff, admins) and what they want to achieve with accessories.
+   - Includes several user stories in standard format (As a … I want … so that …) covering:
+     - Browsing and searching accessories (by type, name, and low stock alerts).
+     - Viewing accessory details (description, size, price, stock).
+     - Maintaining the catalog (create/update/delete accessories).
+     - Monitoring low stock items to trigger restocking actions.
+     - (Optional) Early validation/experimentation stories, such as “soft launch” accessories with limited scope.
+2. Extend or create PRD `Goals` / `Success Metrics` sections to include a few measurable outcomes related to accessories, e.g.:
+   - % of active users who interact with accessories.
+   - Catalog completeness/coverage per pet type.
+   - Time to identify and resolve low‑stock situations.
+3. Add 1–2 short `Scenarios` that tie accessories into existing Pet and Activity workflows (e.g., suggesting accessories related to certain activities or pet characteristics), but keep the description at business/experience level only.
+4. Keep everything solution‑agnostic:
+   - No mention of specific endpoints, models, Cosmos containers, schemas, or infra.
+   - No technical diagrams or implementation notes.
+   - If you need to refer to the backend, just say “Accessory service” or “backend services” in generic terms.
+
+Patch current PRD.md file preserving existing structure and tone as much as possible and keep to the point and as brief as possible.
+```
+
 
 ## Success Criteria
 
-- [ ] Created at least 3 well-structured GitHub Issues
-- [ ] Participated in collaborative discussions about requirements
-- [ ] Successfully broke down a business requirement into technical tasks
-- [ ] Used GitHub project management features effectively
-- [ ] Demonstrated understanding of requirements gathering process
-- [ ] Created clear, actionable technical specifications
-
-## Templates to Use
-
-### Issue Template for New Features
-```markdown
-## Business Context
-Why is this feature needed? What problem does it solve?
-
-## User Stories
-- As a [user type], I want [functionality] so that [benefit]
-
-## Acceptance Criteria
-- [ ] Criteria 1
-- [ ] Criteria 2
-- [ ] Criteria 3
-
-## Technical Notes
-High-level implementation considerations
-
-## Dependencies
-What needs to be completed first?
-
-## Definition of Done
-- [ ] Feature implemented and tested
-- [ ] Documentation updated
-- [ ] Code reviewed and merged
-```
-
-## Additional Resources
-
-- [GitHub Issues documentation](https://docs.github.com/en/issues)
-- [GitHub Discussions](https://docs.github.com/en/discussions)
-- [GitHub Projects documentation](https://docs.github.com/en/issues/planning-and-tracking-with-projects)
-- [Writing good user stories](https://www.atlassian.com/agile/project-management/user-stories)
-
-## Solution
-
-[Solution Steps](/solutions/challenge-04/README.md)
+- [ ] GitHub Copilot Space `<yourname>-space` is created and configured with the `MicroHack-GitHub-engineering-constitution` repo, `PRD.md` file, and `context/pet-services-trends.md` upload.
+- [ ] At least 3–5 meaningful enhancement issues are created in your repo, clearly derived from the Spaces brainstorming and linked to PRD goals/metrics where relevant.
+- [ ] A GitHub Project (e.g., Kanban) is created, and the new enhancement issues are visible, triaged into appropriate columns, and roughly prioritized.
+- [ ] `PRD.md` is updated to introduce the new `Accessories` capability with clear goals, user roles, user stories, success metrics, and at least 1–2 scenarios, staying solution‑agnostic.

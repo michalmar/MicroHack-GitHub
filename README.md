@@ -49,14 +49,14 @@ This workshop consists of 11 progressive challenges designed to build comprehens
 ### Collaboration and Planning
 | Challenge | Title | Focus Area | Duration |
 |-----------|-------|------------|----------|
-| [04](/challenges/challenge-04/README.md) | **Collaborative Design with Issues** | Requirements gathering, project management | 60 min |
-| [05](/challenges/challenge-05/README.md) | **Copilot Configuration** | Advanced AI features, team deployment | 45 min |
+| [04](/challenges/challenge-04/README.md) | **Brainstorming with AI, project management** | Requirements gathering, constitution and standards, project management | 20 min |
+| [05](/challenges/challenge-05/README.md) | **GitHub Copilot – From Enabled to Effective** | Copilot best practices, customization and guidance | 30 min |
 
 ### Development and Implementation  
 | Challenge | Title | Focus Area | Duration |
 |-----------|-------|------------|----------|
-| [06](/challenges/challenge-06/README.md) | **Microservice Design** | AI-assisted architecture design | 90 min |
-| [07](/challenges/challenge-07/README.md) | **Implementation and Testing** | TDD, local development, integration | 120 min |
+| [06](/challenges/challenge-06/README.md) | **Design a new microservice with Copilot** | AI-assisted architecture design, specs | 20 min |
+| [07](/challenges/challenge-07/README.md) | **Implementation and testing** | Specs-drive development, local testing and integration | 45 min |
 
 ### Infrastructure and Deployment
 | Challenge | Title | Focus Area | Duration |
