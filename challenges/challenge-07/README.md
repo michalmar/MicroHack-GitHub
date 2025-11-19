@@ -1,18 +1,7 @@
 # Challenge 07: Implementation and Local Testing
 
-
-
-
-
-
-
 ## Overview
-
-In this challenge you move beyond incremental edits and practice an end‑to‑end design & build loop powered by GitHub Copilot. You will (a) set up the existing PetPal reference system, (b) design a new microservice using structured AI prompting, and (c) implement the service (the focus scenario: an `accessory-service`) using the design you iteratively refine with Copilot.
-
-If you already have an `accessory-service` directory in your fork (e.g. from peeking at a solution branch), treat it as a reference only—don’t copy/paste wholesale. Re‑derive the design and implement it yourself to get the learning value.
-
-> Prefer working in small, reviewable commits. Use Copilot to draft artifacts (OpenAPI spec, Pydantic models, tests) then refine manually. Lean on pull request discussion for validation.
+In this challange we will implement and test our application - let's start with our two existing services and than code new one.
 
 ---
 ## 0. Run the Existing PetPal Stack (Preparation)
@@ -117,8 +106,6 @@ The implemented frontend should show existing pets and activities. But accessori
 This is intentional as the accessory-service is not implemented yet. You are now ready to design and implement it in the next steps.
 
 
-
----
 ## 1. Challenge Focus
 
 In this challenge, you will implement the **Accessory Service** - a microservice that manages pet accessories (toys, food, collars, bedding, grooming supplies, etc.). The service exposes REST API endpoints for CRUD operations with advanced filtering and search capabilities, persists data in Azure Cosmos DB (using the emulator), and integrates with the existing PetPal ecosystem.
@@ -139,6 +126,24 @@ In this challenge, you will implement the **Accessory Service** - a microservice
 * Implement search and filtering logic
 * Test API endpoints using HTTP client files
 * Follow consistent coding patterns across microservices
+
+## 2. First implementation
+We have technical specifications pretty detailed so we can ask Copilot agent to code our accessory service based on it. Then we will test and iterate.
+
+Try this prompt and make sure all our context is available to Copilot (drag our specs files into chat context).
+
+```markdown
+Your task is to code new microservice accessory-service based on specification.
+
+1. Closely follow all technical specifications in `specs/services/accessory-service`, make sure to read all files there before continuing.
+2. Review code, .env, start script and other parts our existing services `backend/activity-service` and `backend/pet-service` to make sure we follow the same style and structure.
+3. If you need overall architecture overview read documents in `specs/platform` and for business requirements you can check `PRD.md`
+4. After you gather all mention documents think about solution and plan for execution
+5. Once you have plan what to do, start implementing this
+```
+
+
+
 
 ---
 ## 2. Implementation Approach
