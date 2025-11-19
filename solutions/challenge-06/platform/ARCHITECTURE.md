@@ -26,27 +26,31 @@ graph TB
     Frontend[Frontend App]
     PetService[Pet Service]
     ActivityService[Activity Service]
+    AccessoryService[Accessory Service]
     DB[Azure Cosmos DB]
 
     User -->|Uses| Frontend
     Frontend -->|API Calls| PetService
     Frontend -->|API Calls| ActivityService
+    Frontend -->|API Calls| AccessoryService
     PetService -->|Persists data to| DB
     ActivityService -->|Persists data to| DB
+    AccessoryService -->|Persists data to| DB
 ```
 
 ### Container / Service View
 
-| Component            | Responsibility                                                      | Tech Stack              | Deployment Target          | Owners        |
-| -------------------- | ------------------------------------------------------------------- | ----------------------- | -------------------------- | ------------- |
-| **Frontend**         | User interface for dashboard, pet management, and activity logging. | React                   | Azure Container Apps       | Frontend Team |
-| **Pet Service**      | Manages pet profiles, metadata, and CRUD operations.                | Python (FastAPI)        | Azure Container Apps       | Backend Team  |
-| **Activity Service** | Manages activity logs, timelines, and historical data.              | Python (FastAPI)        | Azure Container Apps       | Backend Team  |
-| **Database**         | Centralized NoSQL store for all pet and activity data.              | Azure Cosmos DB (NoSQL) | Azure Cosmos DB Serverless | Platform Team |
+| Component             | Responsibility                                                      | Tech Stack              | Deployment Target          | Owners        |
+| --------------------- | ------------------------------------------------------------------- | ----------------------- | -------------------------- | ------------- |
+| **Frontend**          | User interface for dashboard, pet management, and activity logging. | React                   | Azure Container Apps       | Frontend Team |
+| **Pet Service**       | Manages pet profiles, metadata, and CRUD operations.                | Python (FastAPI)        | Azure Container Apps       | Backend Team  |
+| **Activity Service**  | Manages activity logs, timelines, and historical data.              | Python (FastAPI)        | Azure Container Apps       | Backend Team  |
+| **Accessory Service** | Manages pet accessories, inventory, and CRUD operations.            | Python (FastAPI)        | Azure Container Apps       | Backend Team  |
+| **Database**          | Centralized NoSQL store for all pet and activity data.              | Azure Cosmos DB (NoSQL) | Azure Cosmos DB Serverless | Platform Team |
 
 ### Data Flow
 1.  **User Interaction**: User performs an action (e.g., "Create Pet") on the Frontend.
-2.  **API Request**: Frontend sends an authenticated HTTPS request to the relevant service (Pet or Activity Service).
+2.  **API Request**: Frontend sends an authenticated HTTPS request to the relevant service (Pet, Activity, or Accessory Service).
 3.  **Persistence**: Service validates the request and writes/reads from Azure Cosmos DB.
 4.  **Response**: Service returns JSON response to Frontend; Frontend updates UI.
 
@@ -83,4 +87,4 @@ graph TB
 
 ## Decision References
 -   **ADR-001**: Use of Azure Cosmos DB for schema flexibility and scalability.
--   **ADR-002**: Microservices architecture (Pet vs. Activity) to allow independent scaling and lifecycle management.
+-   **ADR-002**: Microservices architecture (Pet vs. Activity vs. Accessory) to allow independent scaling and lifecycle management.

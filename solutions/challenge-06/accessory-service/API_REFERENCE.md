@@ -1,90 +1,90 @@
 # Service API Reference
 
-Describe the HTTP endpoints owned by this service.
+Describe the HTTP/GraphQL endpoints, message topics, or scheduled jobs owned by this service.
 
 ## Quick Links
 - Shared contracts: `../../platform/API_REFERENCE.md`
+- ADRs impacting this service: N/A
 
 ## Endpoint Catalog
 
-| Endpoint | Method | Description | Auth |
-| --- | --- | --- | --- |
-| `/` | GET | Root endpoint with service info | Public |
-| `/health` | GET | Health check with database connectivity | Public |
-| `/api/accessories` | GET | List accessories with filtering and pagination | Public |
-| `/api/accessories` | POST | Create new accessory | Public |
-| `/api/accessories/{id}` | GET | Get specific accessory | Public |
-| `/api/accessories/{id}` | PATCH | Update accessory (partial) | Public |
-| `/api/accessories/{id}` | DELETE | Delete accessory | Public |
+| Endpoint / Topic        | Method / Verb | Description                                    | Auth | Idempotency | Upstream Dependencies |
+| ----------------------- | ------------- | ---------------------------------------------- | ---- | ----------- | --------------------- |
+| `/`                     | GET           | Root endpoint with service info                | None | Yes         | None                  |
+| `/health`               | GET           | Health check with database connectivity        | None | Yes         | Cosmos DB             |
+| `/api/accessories`      | GET           | List accessories with filtering and pagination | None | Yes         | Cosmos DB             |
+| `/api/accessories`      | POST          | Create new accessory                           | None | No          | Cosmos DB             |
+| `/api/accessories/{id}` | GET           | Get specific accessory                         | None | Yes         | Cosmos DB             |
+| `/api/accessories/{id}` | PATCH         | Update accessory (partial)                     | None | No          | Cosmos DB             |
+| `/api/accessories/{id}` | DELETE        | Delete accessory                               | None | Yes         | Cosmos DB             |
 
 ## Detailed Contracts
 
-### GET /
-Returns service information.
-- **Response**: JSON with service name, version, and status.
+### 1. List Accessories
+**Purpose**: Retrieve a list of accessories with optional filtering by search term, type, and stock status. Supports pagination.
 
-### GET /health
-Checks the health of the service and database connectivity.
-- **Behavior**: Tries to query the container. If database/container doesn't exist, creates it automatically and seeds with sample data.
-- **Response**: JSON with status and database check result.
+**Request**:
+- Query Parameters:
+    - `search` (Optional[str]): Search in name or description.
+    - `type` (Optional[str]): Filter by accessory type.
+    - `lowStockOnly` (Optional[bool]): Show only items with stock < 10.
+    - `limit` (int, default=100): Max results to return.
+    - `offset` (int, default=0): Pagination offset.
 
-### GET /api/accessories
-List accessories with filtering and pagination.
+**Response**:
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Squeaky Toy",
+    "type": "toy",
+    "price": 10.5,
+    "stock": 50,
+    "size": "M",
+    "imageUrl": "http://example.com/toy.jpg",
+    "description": "A fun toy",
+    "createdAt": "2023-01-01T00:00:00Z",
+    "updatedAt": "2023-01-01T00:00:00Z"
+  }
+]
+```
 
-**Query Parameters:**
-- `search` (Optional[str]): Search in name or description (`CONTAINS`).
-- `type` (Optional[str]): Filter by accessory type.
-- `lowStockOnly` (Optional[bool]): Show only items with stock < 10.
-- `limit` (int, default=100): Max results to return.
-- `offset` (int, default=0): Pagination offset.
+### 2. Create Accessory
+**Purpose**: Create a new accessory.
 
-**Response:**
-- `200 OK`: List of `Accessory` objects.
-
-### POST /api/accessories
-Create a new accessory.
-
-**Request Body:** `AccessoryCreate`
+**Request**:
 ```json
 {
   "name": "Squeaky Toy",
   "type": "toy",
-  "price": 15.99,
+  "price": 10.5,
   "stock": 50,
   "size": "M",
   "imageUrl": "http://example.com/toy.jpg",
-  "description": "A fun squeaky toy."
+  "description": "A fun toy"
 }
 ```
 
-**Response:**
-- `201 Created`: The created `Accessory` object.
+**Response**:
+Returns the created accessory object with generated ID and timestamps.
 
-### GET /api/accessories/{id}
-Get a specific accessory by ID.
+### 3. Get Accessory
+**Purpose**: Get details of a specific accessory.
 
-**Response:**
-- `200 OK`: The `Accessory` object.
-- `404 Not Found`: If the accessory does not exist.
+**Response**:
+Returns the accessory object.
 
-### PATCH /api/accessories/{id}
-Update an accessory (partial update).
+### 4. Update Accessory
+**Purpose**: Update an existing accessory (partial update).
 
-**Request Body:** `AccessoryUpdate` (all fields optional)
-```json
-{
-  "price": 12.99,
-  "stock": 45
-}
-```
+**Request**:
+Fields to update (all optional).
 
-**Response:**
-- `200 OK`: The updated `Accessory` object.
-- `404 Not Found`: If the accessory does not exist.
+**Response**:
+Returns the updated accessory object.
 
-### DELETE /api/accessories/{id}
-Delete an accessory.
+### 5. Delete Accessory
+**Purpose**: Delete an accessory.
 
-**Response:**
-- `204 No Content`: On successful deletion.
-- `404 Not Found`: If the accessory does not exist.
+**Response**:
+204 No Content or 200 OK.

@@ -11,7 +11,6 @@ Before designing a new service, spin up the current system so you understand int
 ```sh
 docker pull mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
 
-
 docker run \
    --name cosmos-emulator \
    --detach \
@@ -140,7 +139,78 @@ Your task is to code new microservice accessory-service based on specification.
 3. If you need overall architecture overview read documents in `specs/platform` and for business requirements you can check `PRD.md`
 4. After you gather all mention documents think about solution and plan for execution
 5. Once you have plan what to do, start implementing this
+6. Read types of tests in `backend/accessory-service/accessory-service.http` and write simple testing script that will do something similar. In one terminal run service, in other run test script and iterate until everything is OK.
 ```
+
+Open `backend/accessory-service/accessory-service.http` which contains few API tests. Run throw them all, must be OK with no errors and make sense (eg. search returns correct items). If there are errors or unexpected behavior, work with Copilot to fix it.
+
+### Example issues
+For example if tests show you can write, but **getting accessories return empty array**, most likely there is error in how code builds WHERE filters in SQL query. Point this out to Copilot, for example:
+
+```markdown
+Accessory services correctly write items, but search and filter do not work, empty array is returned. Review the way how filters are build, write simple test Python script that uses the same .env and iterate over it until you find correct implementation and than fix our accessory service code.
+```
+
+Creating accessory fails with validation error such as
+
+```json
+HTTP/1.1 400 Bad Request
+date: Wed, 19 Nov 2025 11:11:57 GMT
+server: uvicorn
+content-length: 793
+content-type: application/json
+connection: close
+
+{
+  "detail": "5 validation errors for Accessory\nname\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.5/v/missing\ntype\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.5/v/missing\nprice\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.5/v/missing\nstock\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.5/v/missing\nsize\n  Field required [type=missing, input_value={}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.5/v/missing"
+}
+```
+
+Copy this error to Copilot and let it find solution.
+
+## 3. Seed data for accessories
+Let's generate some seed data, ask Copilot to simply create Python script to do that.
+
+```markdown
+See API structure in `specs/services/accessory-service/API_REFERENCE.md` and create two scripts:
+- delete_accessories: This script will delete all accessories
+- seed_accessories: This script will create 3 example accessories (two toys, one food item with low stock)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-----------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

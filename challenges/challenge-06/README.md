@@ -48,6 +48,7 @@ Use **CosmosDB** for data persistency much like with other services.
 
 **Search Implementation:**
    - Build dynamic SQL query based on filters
+   - Emulator do NOT support tautologies like `WHERE 1=1`, do not use it to simply concat filters, implement proper list-building patterns
    - Support text search in name and description (`CONTAINS`)
    - Support type filtering
    - Support low stock filtering (stock < 10)
