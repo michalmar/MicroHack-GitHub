@@ -1,4 +1,4 @@
-# Challenge 06: Design & Implement a New Microservice with Copilot
+# Challenge 06: Design a new microservice with Copilot
 
 ## Overview
 In this challenge we will prepare specifications for new service `accessory-service` which busines requirements we added to `PRD.md` in one of our previous challenges. Review specs templates in [constituion repo](https://github.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/tree/main) and also check our platform specs and specs for our two services in `specs` folder.

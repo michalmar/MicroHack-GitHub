@@ -1,4 +1,4 @@
-# Challenge 07: Implementation and Local Testing
+# Challenge 07: Implementation and testing
 
 ## Overview
 In this challange we will implement and test our application - let's start with our two existing services and than code new one.

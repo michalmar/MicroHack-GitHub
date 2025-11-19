@@ -1,4 +1,4 @@
-# Challenge 04: Collaborative Change Design using GitHub Issues / Discussions
+# Challenge 04: Brainstorming with AI, project management
 
 ## Overview
 In this challenge we will work on roadmap for our product
