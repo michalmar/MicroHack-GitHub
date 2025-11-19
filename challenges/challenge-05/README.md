@@ -96,7 +96,7 @@ There are instructions we want our agents to read for every single request to de
 Use GitHub Copilot to draft `AGENTS.md` for us using following prompt:
 
 ```markdown
-You task is to create AGETNS.md with condensed brief instructions based on #fetch https://agents.md/
+You task is to create AGETNS.md with robust instructions based on #fetch https://agents.md/
 - Use our `AGENTS.md` template from https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/templates/AGENTS.md
 - In our project we use Python, you can see extended coding standards here: https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/standards/python.md
 - For Infrastructure as Code we use Bicep, see extended standards here: https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/standards/bicep.md
@@ -171,15 +171,19 @@ Try it now with prompt `/headerComments DoubleDashBlock in activity service`
 There is more you can customize in Copilot, but this is enough for our need.
 
 ## Adding MCP tools
+So far we have used many built-in tools so Copilot can edit files, merge, search repository and also leverage MCP tool #fetch that allow downloading sources from Internet. There are much more advanced MCP Servers available. Click on tools ico next to model selection and see what is installed in your environment. Click on MCP icon next to Configure tools and `Browse MCP Servers` to see some from GitHub catalog. Find `Microsoft Learn` and install it.
+
+Try new MCP server with `I need official code example on how to use Azure SDK in Python to use managed identity to authenticate to Azure SQL` which will likely make Copilot select out new tool ans search in documentation (or you can force it with #Microsoft Docs).
+
+You can bring any MCP Server you want by default, but Copilot enterprise administrators can also create curated list of solutions. Look at one of [MCP catalogs](https://mcpserverdirectory.org/) where you will find tools for accessing Azure, GitHub, SQL, PostgreSQL, Kubernetes, Jira, ServiceNow and many more. Very useful is Playwright MCP (by Microsoft, you will find in official GitHub MCP catalog) so you can automate UI testing, but this is currently not supported in Codespaces (requires browser). Another good example is Figma MCP so you can integrate with screen designs.
+
+We can install for example Git MCP outside of built-in catalog - click on tools, MCP icon and MCP server command `uvx mcp-server-git`. Test it with prompt `What changed in last 3 commits?`
 
 ## Success criteria
 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
-- [ ] 
+- [ ] Used Copilot to search codebase and generate documentation in `MY_NEW_DOCS.md`
+- [ ] Used `#fetch` to retrieve external documentation into context
+- [ ] Experimented with Agent Mode to scaffold a complex feature
+- [ ] Created `AGENTS.md` to customize Copilot behavior for the project
+- [ ] Created and tested a custom prompt file `.github/prompts/headerComments.prompt.md`
+- [ ] Installed and used an MCP server (e.g. Microsoft Learn or Git) 
