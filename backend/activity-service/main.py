@@ -63,7 +63,6 @@ def get_db_service() -> ActivityCosmosService:
     """Dependency to get database service instance"""
     return get_cosmos_service()
 
-
 ###############################################################################
 # HEALTH CHECK ENDPOINT
 ###############################################################################

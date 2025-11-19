@@ -91,6 +91,84 @@ Create new backend service called discussions-service that provides API and back
 As you can see agent can be very powerful, but requires very specific guadance, rules and tools. We will use agent to implement our `accessory` service later, but before we do so, we need to create coding guidelines, add tools and in nech challenge author comprehensive technical specification.
 
 ## Customize Copilot to fit our project needs
+There are instructions we want our agents to read for every single request to define desired behavior, most important coding standards, project organization, documentation strategy and so on. This live in standardized [AGENTS.md](https://agents.md/) file. We have [AGENTS.md template](https://github.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/blob/main/templates/AGENTS.md) for our MicroHack organization that we will derive `AGENTS.md` for our repo by combining template, guidelines for specific languages and technical stack we are using and other specifics for this repo.
+
+Use GitHub Copilot to draft `AGENTS.md` for us using following prompt:
+
+```markdown
+You task is to create AGETNS.md with condensed brief instructions based on #fetch https://agents.md/
+- Use our `AGENTS.md` template from https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/templates/AGENTS.md
+- In our project we use Python, you can see extended coding standards here: https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/standards/python.md
+- For Infrastructure as Code we use Bicep, see extended standards here: https://raw.githubusercontent.com/CZSK-MicroHacks/MicroHack-GitHub-engineering-constitution/refs/heads/main/standards/bicep.md
+- This project is targeting simplicity to facilitate learning, emphasize that in `AGENTS.md` - do not overcomplicate, do not do premature abstractions and so on
+```
+
+See resulting `AGENTS.md` file and you can make modifications to fit your needs.
+
+There might be complex prompts you use often or you want to share with other developers in your repository. For that we can use Prompt Files. Create file `.github/prompts/headerComments.prompt.md` with this content:
+
+````markdown
+---
+description: Add Python class and function header comments in a specific visual style
+argument-hint: Specify style (HashBlock, AsciiBox...) and target (active file, folder...)
+agent: agent
+tools: []
+---
+Make sure user provided style in ${input:style} and target in ${input:target}. If not, do not continue and ask for them again.
+
+The `target` input specifies the scope of the operation. It can be:
+- "active file" or "current file"
+- A specific file path
+- A directory path (to apply to all files in that directory)
+- A glob pattern (e.g., "**/*.py")
+
+Based on the style provided, add visual function header comments before each function definition or class in the Python files specified by `target`. 
+If there are already header comments present, replace them with the new style.
+
+Use the following definitions for the styles:
+
+1. **HashBlock**:
+   ```python
+   ###############################################################################
+   # FUNCTION NAME
+   ###############################################################################
+   ```
+
+2. **AsciiBox**:
+   ```python
+   # +-----------------------------------------------------------------------------+
+   # |                                FUNCTION NAME                                |
+   # +-----------------------------------------------------------------------------+
+   ```
+
+3. **ArrowSeparator**:
+   ```python
+   # -----------------------------> FUNCTION NAME <-----------------------------
+   ```
+
+4. **DoubleDashBlock**:
+   ```python
+   # =============================================================================
+   # FUNCTION NAME
+   # =============================================================================
+   ```
+
+5. **StarBanner**:
+   ```python
+   # ****************************** FUNCTION NAME ******************************
+   ```
+
+6. **Minimal**:
+   ```python
+   # --- FUNCTION NAME ---
+   ```
+
+Apply the selected style to all Python functions and classes in the files matching the `target`.
+````
+
+Try it now with prompt `/headerComments DoubleDashBlock in activity service`
+
+There is more you can customize in Copilot, but this is enough for our need.
 
 ## Adding MCP tools
 
