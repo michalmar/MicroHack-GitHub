@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"my-uvx-mcp": {
+			"type": "stdio",
+			"command": "uvx",
+			"args": [
+				"mcp-server-fetch"
+			]
+		}
+	},
+	"inputs": []
+}
