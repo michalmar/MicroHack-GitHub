@@ -2,7 +2,7 @@
     "name": "MicroHack-GitHub",
     "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    "postCreateCommand": "az version && /bin/bash ./.devcontainer/setup_ports.sh",
+    "postCreateCommand": "az version && (curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --yes) && /bin/bash ./.devcontainer/setup_ports.sh",
     "forwardPorts": [
         3000,
         8010,
@@ -48,7 +48,8 @@
                 "GitHub.copilot-chat",
                 "humao.rest-client",
                 "GitHub.vscode-pull-request-github",
-                "ms-python.python"
+                "ms-python.python",
+                "bierner.markdown-mermaid"
             ],
             "settings": {
                 "editor.formatOnSave": true,
