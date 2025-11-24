@@ -51,11 +51,11 @@ class Settings:
         Returns:
             True if running locally (CosmosDB Emulator), False if in Azure
         """
-        if not self.cosmos_endpoint:
-            return False
         endpoint = self.cosmos_endpoint.lower()
         # Check if endpoint is localhost or emulator
         return "localhost" in endpoint or "127.0.0.1" in endpoint
+
+
 
 
 @lru_cache()
