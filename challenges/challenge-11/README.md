@@ -58,4 +58,12 @@ Copy the template below into a new GitHub Issue and customize details such as br
 - Comment summarizing any ambiguities or assumptions.
 ```
 
+## Note
+
+You may customize the prompt further based on your specific codebase or documentation standards. 
+![assign to agent](../../solutions/challenge-11/docs/assign-to-agent.jpg)
+
+And eyou can even create your own agents for recurring  tasks.
+![custom agent](../../solutions/challenge-11/docs/github-custom-agent.jpg)
+
 Once the agent completes the issue, review the pull request, suggest fixes if required, and approve when everything matches the service implementation.
