@@ -1,22 +1,11 @@
 # Solution: Challenge 04
 
-This solution will be provided during the workshop or can be developed as part of the learning exercise.
+Here is how to create GitHub Copilot Space
 
-## Overview
+![](docs/image1.png)
 
-Detailed solution steps and implementation guidance will be available here.
+![](docs/image2.png)
 
-## Key Learning Points
 
-- Implementation strategies and best practices
-- Common pitfalls and how to avoid them  
-- Success validation criteria
-- Next steps and additional resources
+Here is example [Product Requirements Document](./PRD.md) that belongs to repository root.
 
-## Solution Approach
-
-[Solution content to be added]
-
----
-
-*This is a placeholder file. Complete solution will be provided during the workshop.*

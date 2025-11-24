@@ -187,3 +187,15 @@ We can install for example Git MCP outside of built-in catalog - click on tools,
 - [ ] Created `AGENTS.md` to customize Copilot behavior for the project
 - [ ] Created and tested a custom prompt file `.github/prompts/headerComments.prompt.md`
 - [ ] Installed and used an MCP server (e.g. Microsoft Learn or Git) 
+
+**Don't open until after you finish the challenge iterations**
+<details>
+
+<summary>Help / Solution</summary>
+
+View solution here: [Challenge 05 Solution](../../solutions/challenge-05/README.md)
+
+</details>
+
+## Next Step
+Proceed to next challenge: [Challenge 06](../challenge-06/README.md)
