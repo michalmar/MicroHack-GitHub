@@ -81,3 +81,11 @@ jobs:
 
           echo "❌ Health check failed after 5 attempts"
           exit 1
+
+  pre-prod-deploy:
+    runs-on: ubuntu-latest
+    needs: [build-and-deploy, post-deploy-tests]
+    environment: pre-prod
+    steps:
+      - name: Mock deployment
+        run: echo "Deploying to pre-prod environment..."
