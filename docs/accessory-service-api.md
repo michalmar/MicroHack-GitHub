@@ -862,7 +862,7 @@ When integrating with the Accessory Service:
 
 2. **Single-Tenant**: The service assumes a single-tenant deployment. For multi-tenant scenarios, add tenant filtering and isolation.
 
-3. **Synchronous Operations**: All database operations are currently synchronous (blocking). The FastAPI endpoints marked as `async` are for framework compatibility, but the underlying database calls in `database.py` may not be truly asynchronous.
+3. **Mixed Async/Sync Operations**: The service uses a hybrid approach - the list/search endpoint (`GET /api/accessories`) uses async database operations for better performance with large result sets, while CRUD operations (create, get by ID, update, delete) use synchronous database calls for simplicity. This is based on the current implementation in `backend/accessory-service/database.py`.
 
 4. **Manual Price Management**: Prices are stored as floats. For financial applications requiring exact precision, consider using Decimal types throughout.
 
@@ -878,7 +878,7 @@ When integrating with the Accessory Service:
 
 ### Known Limitations
 
-1. **No Pagination Metadata**: The list endpoint returns raw arrays without pagination metadata (total count, has_next, etc.)
+1. **No Pagination Metadata**: The list endpoint supports offset/limit pagination parameters but returns raw arrays without pagination metadata in the response (e.g., no total count, has_next, page number). Clients must manage pagination state themselves.
 2. **No Bulk Operations**: No endpoints for bulk create, update, or delete operations
 3. **Limited Stock Management**: No automatic low-stock alerts or inventory management features
 4. **No Image Upload**: The `imageUrl` field expects external URLs; no built-in image upload/storage
