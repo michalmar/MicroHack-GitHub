@@ -25,5 +25,3 @@ docker run -d \
    --name petpal-ui \
    ghcr.io/michalmar/petpal-ui:latest
 
-
-test
