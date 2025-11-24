@@ -35,6 +35,49 @@ var containerAppEnvName = '${resourcePrefix}-env-${uniqueSuffix}'
 var logAnalyticsName = '${resourcePrefix}-logs-${uniqueSuffix}'
 var acrName = replace('${resourcePrefix}acr${uniqueSuffix}', '-', '') // ACR names cannot contain hyphens
 var githubIdentityName = '${resourcePrefix}-gha-mi-${uniqueSuffix}'
+var cosmosControlPlaneRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '230815da-be43-4aae-9cb4-875f7bd000aa'
+)
+var cosmosAccountResourceId = resourceId('Microsoft.DocumentDB/databaseAccounts', cosmosAccountName)
+var cosmosDataContributorRoleId = '00000000-0000-0000-0000-000000000002'
+
+var petServiceCosmos = {
+  databaseName: 'petservice'
+  containerName: 'pets'
+  partitionKeyPath: '/id'
+}
+
+var activityServiceCosmos = {
+  databaseName: 'activityservice'
+  containerName: 'activities'
+  partitionKeyPath: '/id'
+}
+
+var accessoryServiceCosmos = {
+  databaseName: 'accessoryservice'
+  containerName: 'accessories'
+  partitionKeyPath: '/id'
+}
+
+var cosmosDatabaseDefinitions = [
+  {
+    name: petServiceCosmos.databaseName
+    containerName: petServiceCosmos.containerName
+    partitionKeyPath: petServiceCosmos.partitionKeyPath
+  }
+  {
+    name: activityServiceCosmos.databaseName
+    containerName: activityServiceCosmos.containerName
+    partitionKeyPath: activityServiceCosmos.partitionKeyPath
+  }
+  {
+    name: accessoryServiceCosmos.databaseName
+    containerName: accessoryServiceCosmos.containerName
+    partitionKeyPath: accessoryServiceCosmos.partitionKeyPath
+  }
+]
+var cosmosDataPlaneRoleDefinitionId = '${cosmosAccountResourceId}/sqlRoleDefinitions/${cosmosDataContributorRoleId}'
 
 // Module imports
 module containerRegistry 'acr.bicep' = {
@@ -47,11 +90,16 @@ module containerRegistry 'acr.bicep' = {
   }
 }
 
+resource containerRegistryResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (enableGitHubManagedIdentity) {
+  name: acrName
+}
+
 module cosmosDb 'cosmos.bicep' = {
   name: 'cosmosdb-deployment'
   params: {
     accountName: cosmosAccountName
     location: location
+    databaseDefinitions: cosmosDatabaseDefinitions
   }
 }
 
@@ -71,7 +119,8 @@ module petService 'container-app.pet-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosAccountId: cosmosDb.outputs.accountId
+    cosmosDatabaseName: petServiceCosmos.databaseName
+    cosmosContainerName: petServiceCosmos.containerName
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }
@@ -84,8 +133,8 @@ module activityService 'container-app.activity-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosAccountId: cosmosDb.outputs.accountId
-    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
+    cosmosDatabaseName: activityServiceCosmos.databaseName
+    cosmosContainerName: activityServiceCosmos.containerName
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
   }
@@ -98,10 +147,74 @@ module accessoryService 'container-app.accessory-service.bicep' = {
     location: location
     containerAppEnvironmentId: containerAppEnvironment.outputs.environmentId
     cosmosEndpoint: cosmosDb.outputs.endpoint
-    cosmosAccountId: cosmosDb.outputs.accountId
-    cosmosDataContributorRoleId: cosmosDb.outputs.dataContributorRoleId
+    cosmosDatabaseName: accessoryServiceCosmos.databaseName
+    cosmosContainerName: accessoryServiceCosmos.containerName
     acrName: acrName
     acrLoginServer: containerRegistry.outputs.loginServer
+  }
+}
+
+resource cosmosAccountExisting 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' existing = {
+  name: cosmosAccountName
+}
+
+resource petServiceCosmosDataRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
+  name: guid(resourceGroup().id, 'pet-service-cosmos-data')
+  parent: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
+    principalId: petService.outputs.identityPrincipalId
+    scope: cosmosAccountResourceId
+  }
+}
+
+resource activityServiceCosmosDataRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
+  name: guid(resourceGroup().id, 'activity-service-cosmos-data')
+  parent: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
+    principalId: activityService.outputs.identityPrincipalId
+    scope: cosmosAccountResourceId
+  }
+}
+
+resource accessoryServiceCosmosDataRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2025-04-15' = {
+  name: guid(resourceGroup().id, 'accessory-service-cosmos-data')
+  parent: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosDataPlaneRoleDefinitionId
+    principalId: accessoryService.outputs.identityPrincipalId
+    scope: cosmosAccountResourceId
+  }
+}
+
+resource petServiceCosmosControlRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'pet-service-cosmos-control')
+  scope: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosControlPlaneRoleDefinitionId
+    principalId: petService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource activityServiceCosmosControlRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'activity-service-cosmos-control')
+  scope: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosControlPlaneRoleDefinitionId
+    principalId: activityService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource accessoryServiceCosmosControlRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, 'accessory-service-cosmos-control')
+  scope: cosmosAccountExisting
+  properties: {
+    roleDefinitionId: cosmosControlPlaneRoleDefinitionId
+    principalId: accessoryService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -116,10 +229,6 @@ module frontend 'container-app.frontend.bicep' = {
     activityServiceUrl: activityService.outputs.fqdn
     accessoryServiceUrl: accessoryService.outputs.fqdn
   }
-}
-
-resource containerRegistryExisting 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (enableGitHubManagedIdentity) {
-  name: acrName
 }
 
 resource githubManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2025-01-31-preview' = if (enableGitHubManagedIdentity) {
@@ -160,7 +269,7 @@ resource githubIdentityContributorRole 'Microsoft.Authorization/roleAssignments@
 
 resource githubIdentityAcrPushRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableGitHubManagedIdentity) {
   name: guid(subscription().subscriptionId, githubManagedIdentity.id, 'acr-push')
-  scope: containerRegistryExisting
+  scope: containerRegistryResource
   properties: {
     roleDefinitionId: subscriptionResourceId(
       'Microsoft.Authorization/roleDefinitions',

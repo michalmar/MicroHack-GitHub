@@ -7,7 +7,7 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 ## Learning Objectives
 
 - Implement Infrastructure as Code (IaC) using Bicep
-- Deploy microservices to Azure Container Apps
+- Provision Azure Container Apps for microservices
 - Provision and configure Azure Cosmos DB
 - Understand basic Azure resource management and deployment
 - Experience with Azure Developer CLI (azd) for simplified deployments
@@ -16,8 +16,7 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
 
 - Azure subscription with appropriate permissions
 - Completed Challenge 07 (backend services running locally)
-- Azure CLI installed and configured
-- Basic understanding of Azure services and containerization
+- Azure Developer CLI installed and configured
 - Familiarity with Bicep or willingness to learn
 
 ## Tasks
@@ -40,9 +39,9 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    - Understand modular infrastructure design
    - Plan for environment-specific configurations (dev, staging, prod)
 
-### Task 2: Set Up Bicep Infrastructure
+### Task 2: Review Up Bicep Infrastructure
 
-1. **Create Bicep Project Structure**:
+1. **Review Bicep Project Structure**:
    - Create `infra/` directory in your project root
    - Organize Bicep files by resource type:
      - `main.bicep` - orchestration template
@@ -52,198 +51,53 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
      - `container-app.*.bicep` - individual Container App modules
    - Create `main.parameters.json` for parameter values
 
-2. **Define Core Resources**:
-   - Use Copilot to generate Bicep templates:
-     ```
-     "Create a Bicep template for Azure Container Apps environment with Log Analytics"
-     
-     "Generate Bicep for Cosmos DB serverless with SQL API"
-     
-    "Create Bicep template for Azure Container Registry with Basic SKU and admin disabled"
-     
-     "Create Bicep module for Container App with environment variables and ingress"
-     ```
 
-3. **Configure GitHub Workload Identity**:
-  - Add a user-assigned managed identity to `main.bicep` (for example `petpal-<env>-gha-mi-<suffix>`)
-  - Create `federatedIdentityCredential` resources that trust your GitHub repository subjects (default: `repo:michalmar/MicroHack-GitHub:ref:refs/heads/main`)
-  - Grant the identity `Contributor` on the resource group and `AcrPush` on the ACR to support CI/CD deployments without client secrets
-  - Output the managed identity `clientId`, `principalId`, and `resourceId` so Challenge 09 workflows can reference them
-
-### Task 3: Implement Container Infrastructure
+### Task 3: Implement Container Infrastructure for Accessory Service
 
 1. **Container Apps Environment**:
-   - Define Container Apps managed environment
-   - Configure Log Analytics workspace integration
-   - Set up environment naming with unique suffixes
+   - Review one of existing Bicep modules for Container Apps backend service
+   - Use Copilot to help generate Bicep code if needed
 
-2. **Deploy Backend Services**:
-   - Create Container App configurations for:
-     - Pet Service (port 8010)
-     - Activity Service (port 8020)
-     - Accessory Service (port 8030)
-   - For each service, configure:
-     - User-assigned managed identity for ACR image pull and Cosmos DB access
-     - `AcrPull` role assignment scoped to the ACR
-     - Registry configuration with managed identity authentication
-     - Environment variables:
-       - `AZURE_CLIENT_ID` - Client ID of the user-assigned managed identity (required for DefaultAzureCredential)
-       - `COSMOS_ENDPOINT`
-       - `COSMOS_DATABASE_NAME`
-       - `COSMOS_CONTAINER_NAME`
-     - RBAC role assignments:
-       - `Cosmos DB Data Contributor` (00000000-0000-0000-0000-000000000002) - for data plane operations
-       - `DocumentDB Account Contributor` (5bd9cd88-fe45-4216-938b-f97437e15450) - for database/container creation
-   - Enable external ingress for each service
-   - Configure resource allocation (CPU, memory)
-   - Note: Each service gets its own managed identity for security isolation
-   - **Important**: Services authenticate to Cosmos DB using managed identity with RBAC (no master keys needed)
-
-3. **Deploy Frontend**:
-   - Create Container App for frontend (port 80)
-   - Configure environment variables:
-     - `VITE_API_PETS_URL`
-     - `VITE_API_ACTIVITIES_URL`
-     - `VITE_API_ACCESSORIES_URL`
-   - Enable external ingress with public access
-
-### Task 4: Implement Data Services
-
-1. **Azure Cosmos DB Setup**:
-   - Provision Cosmos DB account with serverless capability
-   - Configure SQL API
-   - Set up session consistency level
-   - Define database and container specifications
-   - Output connection strings and keys for Container Apps
-
-2. **Database Configuration**:
-   - Plan database structure:
-     - Database: `petservice`, Container: `pets`
-     - Database: `activityservice`, Container: `activities`
-     - Database: `accessoryservice`, Container: `accessories`
-   - Configure partition keys appropriately
-   - Set up throughput settings (serverless mode)
-
-3. **Azure Container Registry Setup**:
-   - Provision Azure Container Registry (ACR) with Basic SKU
-   - Disable the admin user so no username/password secrets are created
-   - Configure ACR to be in same resource group as Container Apps
-   - Output the ACR login server and resource ID (credentials are supplied later via managed identity)
-   - Grant your GitHub managed identity the `AcrPush` role for image publishing
-
-4. **Container App Managed Identities for ACR Pull**:
-   - Create a user-assigned managed identity for **each backend service** (pet, activity, accessory)
-   - Grant each identity the `AcrPull` role on the ACR
-   - Configure each Container App to use its managed identity for pulling images from ACR
-   - Add registry configuration to each Container App with managed identity authentication
-   - This follows least privilege principle - each service has its own isolated identity
 
 ### Task 5: Deployment and Testing
 
 1. **Deploy Infrastructure**:
-   - Validate Bicep templates:
-     ```bash
-     az deployment group validate \
-       --resource-group <rg-name> \
-       --template-file infra/main.bicep \
-       --parameters infra/main.parameters.json
-     ```
-   - Deploy to Azure:
-     ```bash
-     az deployment group create \
-       --resource-group <rg-name> \
-       --template-file infra/main.bicep \
-       --parameters infra/main.parameters.json
-     ```
-   - **Alternative**: Use Azure Developer CLI (azd):
+
+  > Important!: We will do only `provision` step here to set up infrastructure. Application code deployment will be done in Challenge 09 using GitHub Actions.
+
+   - Use Azure Developer CLI (azd):
      ```bash
      azd init
-     azd up
+     azd provision
      ```
 
 2. **Verify Deployment**:
    - Check all Container Apps are running
    - Test backend service endpoints
-   - Verify frontend loads and connects to backends
+   - Verify frontend loads
    - Confirm Cosmos DB databases and containers created
    - Verify ACR is created and accessible
    - Review deployment outputs (URLs, connection strings, managed identity information)
-   - Capture identity values for GitHub Actions federation:
-     ```bash
-     # Retrieve managed identity outputs
-     MI_CLIENT_ID=$(az deployment group show \
-       --resource-group <rg-name> \
-       --name <deployment-name> \
-       --query properties.outputs.githubManagedIdentityClientId.value -o tsv)
 
-     MI_PRINCIPAL_ID=$(az deployment group show \
-       --resource-group <rg-name> \
-       --name <deployment-name> \
-       --query properties.outputs.githubManagedIdentityPrincipalId.value -o tsv)
-
-     MI_RESOURCE_ID=$(az deployment group show \
-       --resource-group <rg-name> \
-       --name <deployment-name> \
-       --query properties.outputs.githubManagedIdentityResourceId.value -o tsv)
-
-     echo "AZURE_CLIENT_ID=$MI_CLIENT_ID"
-     echo "MANAGED_IDENTITY_OBJECT_ID=$MI_PRINCIPAL_ID"
-     echo "MANAGED_IDENTITY_RESOURCE_ID=$MI_RESOURCE_ID"
-     ```
-   - Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` (`az account show --query tenantId -o tsv`), and `AZURE_SUBSCRIPTION_ID` (`az account show --query id -o tsv`) as GitHub secrets for Challenge 09
-
+   Example of provisioned services in Azure Portal:
+    ![Azure Portal Container Apps](../../solutions/challenge-08/docs/infra-provisioned.jpg)
+ 
 3. **Test the Application**:
    - Access frontend URL from deployment outputs
-   - Test CRUD operations for pets, activities, and accessories
-   - Verify data persists in Cosmos DB
    - Check Container Apps logs for errors
-
-### Task 6: [OPTIONAL] Infrastructure Documentation
-
-1. **Document Your Infrastructure**:
-   - Create README in `infra/` directory
-   - Document deployment steps
-   - List required parameters and their purposes
-   - Include troubleshooting guide
-   - Document resource naming conventions
-
-2. **Create Deployment Scripts**:
-   - Create `deploy.sh` (or `deploy.ps1`) for automated deployment
-   - Add validation and error handling
-   - Include deployment output display
-   - Add cleanup script for resource deletion
 
 ## Success Criteria
 
 - [ ] Infrastructure code organized in modular Bicep templates
-- [ ] Azure Container Apps Environment deployed with Log Analytics
 - [ ] Four Container Apps deployed (pet, activity, accessory, frontend)
 - [ ] Azure Cosmos DB provisioned with serverless capability
 - [ ] Azure Container Registry (ACR) created and accessible
 - [ ] User-assigned managed identities created for each backend service (3 total)
 - [ ] Each service identity has `AcrPull` role assigned on ACR
 - [ ] Each service identity has `Cosmos DB Data Contributor` + `DocumentDB Account Contributor` roles for Cosmos DB
-- [ ] Container Apps configured with `AZURE_CLIENT_ID` environment variable
-- [ ] Container Apps configured with registry authentication using managed identities
-- [ ] All services have correct environment variables configured (no `COSMOS_KEY` needed)
 - [ ] Services accessible via HTTPS endpoints
-- [ ] Frontend connects to backend APIs successfully
-- [ ] Data persists in Cosmos DB via managed identity authentication
-- [ ] GitHub federated managed identity created with required role assignments (`Contributor` + `AcrPush`)
-- [ ] Managed identity outputs captured for Challenge 09 workflows
-- [ ] Deployment can be repeated reliably (infrastructure as code)
 
-**Preparation for Challenge 09:**
-After completing this challenge, you should have:
-- ACR login server URL (e.g., `petpal12345.azurecr.io`)
-- Managed identity client ID, principal ID, and resource ID
-- Azure tenant ID and subscription ID
-- Resource group name
-- Container App names for all services
-
-These will be used in Challenge 09 for automated deployments via GitHub Actions.
-
-## Infrastructure as Code with Copilot
+## Infrastructure as Code with Copilot - Exaamples
 
 ### Getting Started with Bicep
 Use GitHub Copilot to generate Bicep templates:
@@ -282,6 +136,9 @@ azd init
 
 # Provision infrastructure and deploy
 azd up
+
+# Provision only (infrastructure as code)
+azd provision
 
 # Deploy code changes only
 azd deploy
