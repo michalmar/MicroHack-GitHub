@@ -6,7 +6,7 @@ In this challenge we will work on roadmap for our product
 ## Create GitHub Copilot Spaces
 We will create our **knowledge base** that spans multiple repositories and other sources.
 
-Go to [https://github.com/copilot/spaces](https://github.com/copilot/spaces) and create ne Space called `<yourname>-space`
+Go to [https://github.com/copilot/spaces](https://github.com/copilot/spaces) and create new Space called `<yourname>-space`
 
 - Add full repository `MicroHack-GitHub-engineering-constitution` 
 - Add file `PRD.md` from `MicroHack-GitHub`.
@@ -135,3 +135,15 @@ Patch current PRD.md file preserving existing structure and tone as much as poss
 - [ ] At least 3–5 meaningful enhancement issues are created in your repo, clearly derived from the Spaces brainstorming and linked to PRD goals/metrics where relevant.
 - [ ] A GitHub Project (e.g., Kanban) is created, and the new enhancement issues are visible, triaged into appropriate columns, and roughly prioritized.
 - [ ] `PRD.md` is updated to introduce the new `Accessories` capability with clear goals, user roles, user stories, success metrics, and at least 1–2 scenarios, staying solution‑agnostic.
+
+**Don't open until after you finish the challenge iterations**
+<details>
+
+<summary>Help / Solution</summary>
+
+View solution here: [Challenge 02 Solution](../../solutions/challenge-04/README.md)
+
+</details>
+
+## Next Step
+Proceed to next challenge: [Challenge 05](../challenge-05/README.md)

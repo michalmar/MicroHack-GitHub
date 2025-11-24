@@ -1,4 +1,4 @@
-## remove running cintainers if exists
+## remove running containers if exists
 docker container rm -f cosmos-emulator petpal-ui 2>/dev/null || true
 
 # pull docker image
