@@ -17,6 +17,14 @@ param location string = resourceGroup().location
 ])
 param defaultConsistencyLevel string = 'Session'
 
+@description('Collection of SQL databases and their primary containers to provision in this account')
+param databaseDefinitions array = []
+
+var databaseDefinitionsWithIndex = [for idx in range(0, length(databaseDefinitions)): {
+  index: idx
+  definition: databaseDefinitions[idx]
+}]
+
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' = {
   name: accountName
   location: location
@@ -45,6 +53,36 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2025-04-15' = {
     disableKeyBasedMetadataWriteAccess: false
   }
 }
+
+resource sqlDatabases 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-04-15' = [for db in databaseDefinitionsWithIndex: {
+  name: db.definition.name
+  parent: cosmosAccount
+  properties: {
+    resource: {
+      id: db.definition.name
+    }
+    options: {}
+  }
+}]
+
+resource sqlContainers 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-04-15' = [
+  for db in databaseDefinitionsWithIndex: {
+    name: db.definition.containerName
+    parent: sqlDatabases[db.index]
+    properties: {
+      resource: {
+        id: db.definition.containerName
+        partitionKey: {
+          paths: [
+            db.definition.partitionKeyPath
+          ]
+          kind: 'Hash'
+        }
+      }
+      options: {}
+    }
+  }
+]
 
 // Built-in Cosmos DB Data Contributor role definition
 // This is a built-in role, we just reference it for assignments
