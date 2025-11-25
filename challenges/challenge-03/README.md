@@ -44,19 +44,9 @@ GitHub Codespaces is a cloud-based development environment hosted by GitHub. Eac
 
 ## Tasks
 
-### Task 1: Fork and Access the Repository
+### Task 1: Access the Repository
 
-1. **Fork the Repository**
-   - Navigate to `https://github.com/CZSK-MicroHacks/MicroHack-GitHub`
-   - Click the "Fork" button in the top-right corner
-   - Select your account as the destination
-   - Wait for the fork to complete
-
-2. **Create Your First Codespace**
-   - In your forked repository, click the green "Code" button
-   - Select the "Codespaces" tab
-   - Click "Create codespace on main"
-   - Wait for the environment to initialize (this may take 1-2 minutes)
+You have created repository from template in challenge 01.
 
 ### Task 2: Explore the Current Environment
 
