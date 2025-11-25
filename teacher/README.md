@@ -17,3 +17,5 @@ terraform apply -var-file sub1.tfvars
 5. Enable billing from Azure.
 
 6. Create Organization, create Team based on our Entra group and give access to Organization
+
+7. Take student branch and use it to create "seed repo" in organization - template participants will start from.

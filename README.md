@@ -6,6 +6,12 @@ Welcome to the GitHub MicroHack! This hands-on workshop explores modern software
 
 This MicroHack guides you through a comprehensive journey of modern development practices, from basic GitHub concepts to advanced AI-assisted development and enterprise-scale DevSecOps implementation.
 
+This repozitory provides two branches:
+- **main** - this is complete repository with solutions
+- **student** - starting point for student, this is base for repo template you will be using in a lab
+
+Instructors please read [Teacher README](./teacher/README.md)
+
 ### 🎯 Learning Objectives
 
 - Master GitHub's collaborative development features and workflows
@@ -83,12 +89,11 @@ This workshop consists of 11 progressive challenges designed to build comprehens
 
 ### Workshop Setup
 
-1. **Fork this repository** to your GitHub account
-2. **Join the GitHub Organization** (instructor will provide details)
-3. **Access Azure environment** (credentials will be provided)
+1. **Access Azure environment** (credentials will be provided, you will have to enroll your account to Microsoft Authenticator)
+2. **Login to GitHub Organization** (using your Azure federated identity, details will be provided)
 
 ### Environment Setup
-No need to set up a local environment; this workshop leverages GitHub Codespaces for a cloud-based development environment (instructions part of challenges).
+No need to set up a local environment; this workshop leverages **GitHub Codespaces** for a cloud-based development environment (instructions part of challenges).
 
 ### Starting the Workshop
 

@@ -37,12 +37,23 @@ Ensure access to GitHub Organization. Discuss identity management options (Enter
 2. Understand the benefits of federated identity
 3. Discuss implementation considerations
 
+### Task 4: Create your own repository from MicroHack template
+Create new repository and use your assigned name (eg. `user001-MicroHack`)
+
+![](./docs/img01.png)
+
+Start from template
+
+![](./docs/img02.png)
+
+
 ## Success Criteria
 
 - [ ] Successfully logged into GitHub Organization
 - [ ] Can access organization repositories and settings
 - [ ] Understand the differences between identity management approaches
 - [ ] Know when to choose EMU vs standard accounts
+- [ ] Create your MicroHack repository from template
 
 ## Additional Resources
 
