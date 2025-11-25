@@ -14,7 +14,7 @@ terraform apply -var-file sub1.tfvars
 
 4. Create GitHub Enterprise with Enterprise Managed Users, OIDC and user synchronization for our users.
 
-5. Enable billing from Azure.
+5. Enable billing from Azure. Enable Copilot Enterprise (so users can access Spark), enable Spark, enable all models.
 
 6. Create Organization, create Team based on our Entra group and give access to Organization
 
