@@ -2,7 +2,7 @@
     "name": "MicroHack-GitHub",
     "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    "postCreateCommand": "az version && (curl -LsSf https://astral.sh/uv/install.sh | sh -s -- --yes) && /bin/bash ./.devcontainer/setup_ports.sh",
+    "postCreateCommand": "az version && (curl -LsSf https://astral.sh/uv/install.sh | sh) && uvx --version && /bin/bash ./.devcontainer/setup_ports.sh",
     "forwardPorts": [
         3000,
         8010,

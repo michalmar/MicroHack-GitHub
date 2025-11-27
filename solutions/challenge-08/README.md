@@ -328,7 +328,7 @@ azd version
 
 # Login to Azure
 az login
-azd auth login
+azd auth login --use-device-code
 
 # Set subscription (if you have multiple)
 az account set --subscription <subscription-id>

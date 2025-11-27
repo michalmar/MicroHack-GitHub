@@ -82,9 +82,6 @@ Deploy the PetPal microservices to Azure using Infrastructure as Code (IaC). Thi
    Example of provisioned services in Azure Portal:
     ![Azure Portal Container Apps](../../solutions/challenge-08/docs/infra-provisioned.jpg)
  
-3. **Test the Application**:
-   - Access frontend URL from deployment outputs
-   - Check Container Apps logs for errors
 
 ## Success Criteria
 
