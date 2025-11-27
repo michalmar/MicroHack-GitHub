@@ -6,6 +6,10 @@
 			"args": [
 				"mcp-server-fetch"
 			]
+		},
+		"GitHub-MCP": {
+			"url": "https://api.githubcopilot.com/mcp",
+			"type": "http"
 		}
 	},
 	"inputs": []
